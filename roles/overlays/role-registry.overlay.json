@@ -1,0 +1,42 @@
+{
+  "version": "1.0.0",
+  "scope": "project",
+  "project": "AgentRuntime",
+  "roles": [
+    {
+      "slug": "sandbox-isolation-reviewer",
+      "name": "Sandbox / Isolation Reviewer",
+      "group": "quality-risk",
+      "description": "Reviews sandbox strength, process/container/sidecar isolation boundaries, escape risk, and executor confinement for agent runtimes.",
+      "applies_to": ["architecture", "implementation", "verification", "launch", "operation"],
+      "triggers": ["sandbox", "isolation", "executor", "subprocess", "container", "sidecar", "remote executor", "escape", "filesystem", "network"],
+      "boundary": "Owns execution isolation strength and escape-risk review for agent tools and executors; does not own general product scope, broad security policy, or infrastructure reliability except where they affect confinement.",
+      "review_focus": [
+        "executor isolation boundary",
+        "filesystem confinement",
+        "network confinement",
+        "environment variable exposure",
+        "process lifecycle and cleanup",
+        "container or sidecar escape risk",
+        "host capability exposure",
+        "production support matrix for isolation levels"
+      ],
+      "evidence_needs": [
+        "executor design",
+        "sandbox assumptions",
+        "filesystem and network access rules",
+        "environment variable policy",
+        "process/container/sidecar configuration",
+        "production deployment model",
+        "known escape and bypass paths",
+        "isolation tests"
+      ],
+      "conflicts_with": [
+        "security-reviewer",
+        "reliability-reviewer",
+        "software-architect",
+        "agent-workflow-architect"
+      ]
+    }
+  ]
+}

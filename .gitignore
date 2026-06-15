@@ -1,0 +1,37 @@
+# Local/private documentation that should not be committed.
+docs/local/
+docs/private/
+docs/drafts/
+docs/internal/
+docs/superpowers/specs/local/
+docs/superpowers/specs/private/
+docs/superpowers/specs/drafts/
+docs/superpowers/plans/local/
+docs/superpowers/plans/private/
+docs/superpowers/plans/drafts/
+
+*.local.md
+*.private.md
+*.draft.md
+
+# Local runtime artifacts.
+.agent-runtime/
+agent-runtime.local.yaml
+agent-runtime.private.yaml
+
+# Python cache/build artifacts.
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+
+# OS/editor noise.
+.DS_Store
+.idea/
+.vscode/
