@@ -7,7 +7,7 @@
 
 ## 结论摘要
 
-本轮测试结论：当前仓库在 core regression、platform-ready certification、adapter contract、sandbox contract、platform simulation、Code/CI reference pilot、staging internal admin pilot、audit verify 和 observer status 这些关键路径上均有新鲜证据。
+本轮测试结论：当前仓库在 core regression、scenario-based acceptance、platform-ready certification、adapter contract、sandbox contract、platform simulation、Code/CI reference pilot、staging internal admin pilot、audit verify 和 observer status 这些关键路径上均有新鲜证据。
 
 本轮没有发现阻塞 Technical Preview 或 design partner pilot 准备的回归。
 
@@ -34,15 +34,16 @@
 
 ## 测试设计
 
-测试设计分为七层：
+测试设计分为八层：
 
 1. **Regression**：使用全量 `pytest` 覆盖 core、policy、audit、adapter、sandbox、platform、pilot 等现有测试。
-2. **Certification**：使用 `certify run` 验证 stable candidate subject 是否仍具备 evidence。
-3. **Adapter Contract**：验证 adapter 是否保持 translate-only、不授予 capability、不绕过 runtime semantics。
-4. **Sandbox Contract**：验证 container、sidecar、remote 三类 backend 的 support level 和边界。
-5. **Runtime Evidence**：验证 Docker runtime smoke evidence 是否能生成，并解释其限制。
-6. **Platform Contract**：验证 platform failure simulation 覆盖 control plane 相关失败模式。
-7. **Pilot E2E**：验证 Code/CI reference pilot 和 staging internal admin pilot 的实际可跑路径。
+2. **Scenario-Based Acceptance**：把 `USER_GUIDE.md` 的 11 个场景映射成用户视角测试。
+3. **Certification**：使用 `certify run` 验证 stable candidate subject 是否仍具备 evidence。
+4. **Adapter Contract**：验证 adapter 是否保持 translate-only、不授予 capability、不绕过 runtime semantics。
+5. **Sandbox Contract**：验证 container、sidecar、remote 三类 backend 的 support level 和边界。
+6. **Runtime Evidence**：验证 Docker runtime smoke evidence 是否能生成，并解释其限制。
+7. **Platform Contract**：验证 platform failure simulation 覆盖 control plane 相关失败模式。
+8. **Pilot E2E**：验证 Code/CI reference pilot 和 staging internal admin pilot 的实际可跑路径。
 
 测试策略不是只看“命令是否返回 0”，还要解释输出语义。例如 remote backend conformance 返回 `passed=false`，但原因是 `remote.contract_beta_only`，这符合当前 support matrix。
 
@@ -59,6 +60,7 @@
 | REQ-007 | staging internal admin pilot 能产生 audit、observer、pilot report | TC-010 Staging admin pilot | `staging-admin-pilot-output.json` | verified |
 | REQ-008 | audit hash chain 可验证 | TC-011 Audit verify | `staging-admin-audit-verify.json` | verified |
 | REQ-009 | observer 能解释 approval、deny、timeout 等运行状态 | TC-012 Observer status | `staging-admin-observer-status.json` | verified |
+| REQ-010 | 用户指南中的场景必须有可运行 acceptance 覆盖 | TC-013 Scenario-based acceptance | `tests/test_scenario_based_user_guide.py`，`scenario-based-user-guide.txt` | verified |
 
 ## 测试用例详情
 
@@ -77,21 +79,22 @@ python -m pytest > .agent-runtime/test-report-2026-06-17/pytest.txt
 **输出结果**
 
 ```text
-tests/test_sandbox_conformance_v12.py ...                                [ 87%]
-tests/test_sandbox_hardening_v12.py ...                                  [ 89%]
-tests/test_sandbox_isolation.py ...                                      [ 91%]
-tests/test_sandbox_runtime_evidence.py ...                               [ 94%]
-tests/test_sandbox_sidecar_v12.py ..                                     [ 95%]
-tests/test_sandbox_support_matrix_v12.py ..                              [ 97%]
+tests/test_sandbox_conformance_v12.py ...                                [ 80%]
+tests/test_sandbox_hardening_v12.py ...                                  [ 82%]
+tests/test_sandbox_isolation.py ...                                      [ 85%]
+tests/test_sandbox_runtime_evidence.py ...                               [ 87%]
+tests/test_sandbox_sidecar_v12.py ..                                     [ 88%]
+tests/test_sandbox_support_matrix_v12.py ..                              [ 89%]
+tests/test_scenario_based_user_guide.py ...........                      [ 97%]
 tests/test_sqlite_audit.py ...                                           [ 99%]
 tests/test_tracing.py .                                                  [100%]
 
-============================= 136 passed in 1.14s ==============================
+============================= 147 passed in 1.77s ==============================
 ```
 
 **输出解释**
 
-`136 passed` 表示当前测试套件全部通过。覆盖范围包括 adapter、audit、policy、sandbox、platform、release manifest、Code/CI pilot、staging pilot、SQLite audit 和 tracing。
+`147 passed` 表示当前测试套件全部通过。覆盖范围包括 adapter、audit、policy、sandbox、platform、release manifest、Code/CI pilot、staging pilot、SQLite audit、tracing，以及 11 个基于用户指南场景的 acceptance tests。
 
 **结论**
 
@@ -574,6 +577,49 @@ observer 反映 staging pilot 中出现了 5 次 tool call、2 次 approval requ
 
 通过。
 
+### TC-013 Scenario-Based Acceptance
+
+**用例设计**
+
+将 `USER_GUIDE.md` 中总结的 11 个场景逐一映射为用户视角 acceptance tests。该测试不是替代底层单元测试，而是验证“用户文档中的场景是否仍能用当前代码表达和运行”。
+
+覆盖场景：
+
+| 场景 | 测试函数 |
+| --- | --- |
+| 本地 Python Agent Runtime | `test_scenario_local_python_agent_runtime_runs_tool_through_policy_and_audit` |
+| 本地 Command Tool 治理 | `test_scenario_local_command_tool_governance_applies_env_allowlist_and_audit_chain` |
+| Staging Internal Admin Agent | `test_scenario_staging_internal_admin_agent_covers_approval_deny_observer_and_audit` |
+| Code/CI Agent Governance | `test_scenario_code_ci_agent_governance_allows_only_allowlisted_commands` |
+| Adapter Replay / Conformance | `test_scenario_adapter_replay_and_conformance_preserve_runtime_semantics` |
+| Container Sandbox Evidence | `test_scenario_container_sandbox_evidence_uses_stable_candidate_contract` |
+| Local Agent + Cloud Runtime Control Plane | `test_scenario_local_agent_cloud_control_plane_contract_fails_closed_and_redacts_exports` |
+| MCP Tool Governance | `test_scenario_mcp_tool_governance_keeps_adapter_translate_only` |
+| Ops Diagnostic Read-Only Agent | `test_scenario_ops_diagnostic_read_only_agent_is_allowlisted_and_audited` |
+| Local Codex/IDE Agent Governance | `test_scenario_local_codex_ide_governance_combines_codex_adapter_and_code_ci_boundaries` |
+| Remote Executor Contract Beta | `test_scenario_remote_executor_remains_contract_beta_not_production_ready` |
+
+**命令**
+
+```bash
+python -m pytest tests/test_scenario_based_user_guide.py -q
+```
+
+**输出结果**
+
+```text
+...........                                                              [100%]
+11 passed in 0.22s
+```
+
+**输出解释**
+
+11 个点分别对应用户指南中的 11 个场景。remote executor 场景的测试期望是 `contract_beta` 且 `passed=false`，因为当前产品不应把 remote executor 宣称为 production-ready backend。
+
+**结论**
+
+通过。
+
 ## 回归范围说明
 
 本轮回归覆盖：
@@ -592,6 +638,7 @@ observer 反映 staging pilot 中出现了 5 次 tool call、2 次 approval requ
 - policy/audit hardening。
 - production pilot report。
 - sandbox abuse、conformance、hardening、runtime evidence、sidecar、support matrix。
+- scenario-based user guide acceptance。
 - SQLite audit。
 - tracing。
 
