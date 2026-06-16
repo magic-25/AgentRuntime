@@ -13,6 +13,7 @@ ToolCall -> Context Filter -> Policy Engine -> Approval Gate -> Executor -> Resu
 
 ## 项目文档
 
+- [用户指南：场景与概念](USER_GUIDE.md)
 - [贡献指南](CONTRIBUTING.md)
 - [安全策略](SECURITY.md)
 - [变更记录](CHANGELOG.md)
