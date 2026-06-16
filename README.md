@@ -15,6 +15,7 @@ ToolCall -> Context Filter -> Policy Engine -> Approval Gate -> Executor -> Resu
 
 - [用户指南：场景与概念](USER_GUIDE.md)
 - [测试报告](TEST_REPORT.md)
+- [场景测试报告](SCENARIO_TEST_REPORT.md)
 - [贡献指南](CONTRIBUTING.md)
 - [安全策略](SECURITY.md)
 - [变更记录](CHANGELOG.md)

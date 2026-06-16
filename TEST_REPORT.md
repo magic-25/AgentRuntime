@@ -60,7 +60,7 @@
 | REQ-007 | staging internal admin pilot 能产生 audit、observer、pilot report | TC-010 Staging admin pilot | `staging-admin-pilot-output.json` | verified |
 | REQ-008 | audit hash chain 可验证 | TC-011 Audit verify | `staging-admin-audit-verify.json` | verified |
 | REQ-009 | observer 能解释 approval、deny、timeout 等运行状态 | TC-012 Observer status | `staging-admin-observer-status.json` | verified |
-| REQ-010 | 用户指南中的场景必须有可运行 acceptance 覆盖 | TC-013 Scenario-based acceptance | `tests/test_scenario_based_user_guide.py`，`scenario-based-user-guide.txt` | verified |
+| REQ-010 | 用户指南中的场景必须有可运行 acceptance 覆盖 | TC-013 Scenario-based acceptance | `SCENARIO_TEST_REPORT.md`，`tests/test_scenario_based_user_guide.py`，`scenario-based-user-guide.txt` | verified |
 
 ## 测试用例详情
 
@@ -579,46 +579,7 @@ observer 反映 staging pilot 中出现了 5 次 tool call、2 次 approval requ
 
 ### TC-013 Scenario-Based Acceptance
 
-**用例设计**
-
-将 `USER_GUIDE.md` 中总结的 11 个场景逐一映射为用户视角 acceptance tests。该测试不是替代底层单元测试，而是验证“用户文档中的场景是否仍能用当前代码表达和运行”。
-
-覆盖场景：
-
-| 场景 | 测试函数 |
-| --- | --- |
-| 本地 Python Agent Runtime | `test_scenario_local_python_agent_runtime_runs_tool_through_policy_and_audit` |
-| 本地 Command Tool 治理 | `test_scenario_local_command_tool_governance_applies_env_allowlist_and_audit_chain` |
-| Staging Internal Admin Agent | `test_scenario_staging_internal_admin_agent_covers_approval_deny_observer_and_audit` |
-| Code/CI Agent Governance | `test_scenario_code_ci_agent_governance_allows_only_allowlisted_commands` |
-| Adapter Replay / Conformance | `test_scenario_adapter_replay_and_conformance_preserve_runtime_semantics` |
-| Container Sandbox Evidence | `test_scenario_container_sandbox_evidence_uses_stable_candidate_contract` |
-| Local Agent + Cloud Runtime Control Plane | `test_scenario_local_agent_cloud_control_plane_contract_fails_closed_and_redacts_exports` |
-| MCP Tool Governance | `test_scenario_mcp_tool_governance_keeps_adapter_translate_only` |
-| Ops Diagnostic Read-Only Agent | `test_scenario_ops_diagnostic_read_only_agent_is_allowlisted_and_audited` |
-| Local Codex/IDE Agent Governance | `test_scenario_local_codex_ide_governance_combines_codex_adapter_and_code_ci_boundaries` |
-| Remote Executor Contract Beta | `test_scenario_remote_executor_remains_contract_beta_not_production_ready` |
-
-**命令**
-
-```bash
-python -m pytest tests/test_scenario_based_user_guide.py -q
-```
-
-**输出结果**
-
-```text
-...........                                                              [100%]
-11 passed in 0.22s
-```
-
-**输出解释**
-
-11 个点分别对应用户指南中的 11 个场景。remote executor 场景的测试期望是 `contract_beta` 且 `passed=false`，因为当前产品不应把 remote executor 宣称为 production-ready backend。
-
-**结论**
-
-通过。
+场景测试单独维护在 [SCENARIO_TEST_REPORT.md](SCENARIO_TEST_REPORT.md)。综合测试报告只记录它作为回归套件的一部分被纳入 `python -m pytest`，并在 REQ-010 中保留追踪关系。
 
 ## 回归范围说明
 
