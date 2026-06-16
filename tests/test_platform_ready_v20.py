@@ -37,6 +37,8 @@ def test_stable_candidate_subjects_have_conformance_evidence_and_remote_executor
 
     assert manifest["support_matrix_v2"]["beta"]["remote_executor"] == "contract_beta"
     assert "remote_executor" not in stable_candidates
+    assert "sidecar_backend" not in stable_candidates
+    assert "sidecar_backend" in manifest["support_matrix_v2"]["preview"]
 
 
 def test_every_production_claim_has_boundary_limitation_rollback_and_audit_behavior():

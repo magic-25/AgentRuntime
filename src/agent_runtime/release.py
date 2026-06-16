@@ -174,7 +174,6 @@ def platform_ready_release_manifest() -> dict[str, Any]:
         "mcp_adapter",
         "codex_workspace_adapter",
         "container_backend",
-        "sidecar_backend",
         "control_plane_api",
     ]
     return {
@@ -206,7 +205,7 @@ def platform_ready_release_manifest() -> dict[str, Any]:
                 "sandbox_conformance_contract",
             ],
             "stable_candidate": stable_candidates,
-            "preview": ["codex_workflow", "platform_integration_contracts"],
+            "preview": ["codex_workflow", "platform_integration_contracts", "sidecar_backend"],
             "experimental": ["codex_connectors", "opentelemetry_sink", "http_api_tool"],
             "beta": {"remote_executor": "contract_beta"},
             "unsupported": [
