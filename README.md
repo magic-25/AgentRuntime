@@ -11,6 +11,12 @@ ToolCall -> Context Filter -> Policy Engine -> Approval Gate -> Executor -> Resu
 
 这不是 public launch，也不是 hosted enterprise platform。当前重点是把 runtime contracts、policy/audit/sandbox、adapter、conformance certification 和 platform-ready manifest 做到可验证，供少量 design partner 在真实场景中试点。
 
+## 项目文档
+
+- [贡献指南](CONTRIBUTING.md)
+- [安全策略](SECURITY.md)
+- [变更记录](CHANGELOG.md)
+
 ## 当前能力
 
 ### Production Core
