@@ -7,7 +7,7 @@
 
 ## 结论摘要
 
-本轮测试结论：当前仓库在 core regression、scenario-based acceptance、platform-ready certification、adapter contract、sandbox contract、platform simulation、Code/CI reference pilot、staging internal admin pilot、audit verify 和 observer status 这些关键路径上均有新鲜证据。
+本轮测试结论：当前仓库在 core regression、scenario-based acceptance、real-agent loop、platform-ready certification、adapter contract、sandbox contract、platform simulation、Code/CI reference pilot、staging internal admin pilot、audit verify 和 observer status 这些关键路径上均有新鲜证据。
 
 本轮没有发现阻塞 Technical Preview 或 design partner pilot 准备的回归。
 
@@ -34,7 +34,7 @@
 
 ## 测试设计
 
-测试设计分为八层：
+测试设计分为九层：
 
 1. **Regression**：使用全量 `pytest` 覆盖 core、policy、audit、adapter、sandbox、platform、pilot 等现有测试。
 2. **Scenario-Based Acceptance**：把 `USER_GUIDE.md` 的 11 个场景映射成用户视角测试。
@@ -43,7 +43,8 @@
 5. **Sandbox Contract**：验证 container、sidecar、remote 三类 backend 的 support level 和边界。
 6. **Runtime Evidence**：验证 Docker runtime smoke evidence 是否能生成，并解释其限制。
 7. **Platform Contract**：验证 platform failure simulation 覆盖 control plane 相关失败模式。
-8. **Pilot E2E**：验证 Code/CI reference pilot 和 staging internal admin pilot 的实际可跑路径。
+8. **Real-Agent Loop**：验证自写 agent loop 会产生 tool call、读取结果并继续或停止。
+9. **Pilot E2E**：验证 Code/CI reference pilot 和 staging internal admin pilot 的实际可跑路径。
 
 测试策略不是只看“命令是否返回 0”，还要解释输出语义。例如 remote backend conformance 返回 `passed=false`，但原因是 `remote.contract_beta_only`，这符合当前 support matrix。
 
@@ -61,6 +62,7 @@
 | REQ-008 | audit hash chain 可验证 | TC-011 Audit verify | `staging-admin-audit-verify.json` | verified |
 | REQ-009 | observer 能解释 approval、deny、timeout 等运行状态 | TC-012 Observer status | `staging-admin-observer-status.json` | verified |
 | REQ-010 | 用户指南中的场景必须有可运行 acceptance 覆盖 | TC-013 Scenario-based acceptance | `SCENARIO_TEST_REPORT.md`，`tests/test_scenario_based_user_guide.py`，`scenario-based-user-guide.txt` | verified |
+| REQ-011 | 至少有自写 real agent loop 测试，不只测试 runtime contract | TC-014 Real-agent loop | `REAL_AGENT_TEST_REPORT.md`，`tests/test_real_agent_scenarios.py` | verified |
 
 ## 测试用例详情
 
@@ -79,6 +81,7 @@ python -m pytest > .agent-runtime/test-report-2026-06-17/pytest.txt
 **输出结果**
 
 ```text
+tests/test_real_agent_scenarios.py ....                                  [ 71%]
 tests/test_sandbox_conformance_v12.py ...                                [ 80%]
 tests/test_sandbox_hardening_v12.py ...                                  [ 82%]
 tests/test_sandbox_isolation.py ...                                      [ 85%]
@@ -89,12 +92,12 @@ tests/test_scenario_based_user_guide.py ...........                      [ 97%]
 tests/test_sqlite_audit.py ...                                           [ 99%]
 tests/test_tracing.py .                                                  [100%]
 
-============================= 147 passed in 1.77s ==============================
+============================= 151 passed in 1.69s ==============================
 ```
 
 **输出解释**
 
-`147 passed` 表示当前测试套件全部通过。覆盖范围包括 adapter、audit、policy、sandbox、platform、release manifest、Code/CI pilot、staging pilot、SQLite audit、tracing，以及 11 个基于用户指南场景的 acceptance tests。
+`151 passed` 表示当前测试套件全部通过。覆盖范围包括 adapter、audit、policy、sandbox、platform、release manifest、Code/CI pilot、staging pilot、SQLite audit、tracing、11 个基于用户指南场景的 acceptance tests，以及 4 个自写 real-agent loop tests。
 
 **结论**
 
@@ -580,6 +583,10 @@ observer 反映 staging pilot 中出现了 5 次 tool call、2 次 approval requ
 ### TC-013 Scenario-Based Acceptance
 
 场景测试单独维护在 [SCENARIO_TEST_REPORT.md](SCENARIO_TEST_REPORT.md)。综合测试报告只记录它作为回归套件的一部分被纳入 `python -m pytest`，并在 REQ-010 中保留追踪关系。
+
+### TC-014 Real-Agent Loop
+
+Real-agent loop 测试单独维护在 [REAL_AGENT_TEST_REPORT.md](REAL_AGENT_TEST_REPORT.md)。综合测试报告只记录它作为回归套件的一部分被纳入 `python -m pytest`，并在 REQ-011 中保留追踪关系。
 
 ## 回归范围说明
 
