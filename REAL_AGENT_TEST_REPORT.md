@@ -16,7 +16,8 @@
 
 重要安全约束：
 
-- API key 不写入仓库。
+- API key 不写入可提交文件。
+- 本地 key 可以写入 ignored `.env`。
 - API key 不写入测试报告。
 - API key 不通过命令行示例展示。
 - 真实 provider 测试只读取环境变量。
@@ -30,14 +31,14 @@
 | 测试文件 | `tests/test_real_agent_scenarios.py`，`tests/test_provider_real_agent.py` |
 | 默认执行命令 | `python -m pytest tests/test_real_agent_scenarios.py tests/test_provider_real_agent.py -q` |
 | 真实 GLM provider 命令 | 设置 `GLM_API_KEY` 或 `ZAI_API_KEY` 后运行 `python -m pytest tests/test_provider_real_agent.py::test_glm_provider_agent_can_call_real_provider_when_key_is_configured -q` |
-| 默认用例数量 | 8 passed，1 skipped |
+| 默认用例数量 | 9 passed，1 skipped |
 | 结果 | 默认测试通过，真实 provider 测试默认跳过 |
 
 ## 测试输出
 
 ```text
-........s                                                                [100%]
-8 passed, 1 skipped in 0.15s
+.........s                                                               [100%]
+9 passed, 1 skipped in 0.14s
 ```
 
 ## Agent 类型
@@ -61,8 +62,9 @@
 | RAG-005 | GLM/OpenAI-compatible provider agent | `test_openai_compatible_provider_agent_executes_model_tool_call_through_runtime` | provider 返回真实 tool-call shape，agent 解析后通过 runtime 执行 `echo` | verified |
 | RAG-006 | Provider no-tool-call boundary | `test_openai_compatible_provider_agent_blocks_when_model_returns_no_tool_call` | provider 未返回 tool call 时 agent blocked，不绕过 runtime | verified |
 | RAG-007 | GLM secret boundary | `test_glm_provider_agent_factory_requires_api_key` | 未设置环境变量时拒绝构造真实 provider agent，不使用硬编码 secret | verified |
-| RAG-008 | Provider error redaction | `test_openai_compatible_transport_redacts_api_key_from_provider_errors` | provider HTTP error detail 中如果出现 API key，异常消息会替换成 `[REDACTED]` | verified |
-| RAG-009 | Real GLM provider integration | `test_glm_provider_agent_can_call_real_provider_when_key_is_configured` | 设置 `GLM_API_KEY` 或 `ZAI_API_KEY` 后，请真实 provider 产生 tool call 并进入 runtime | optional |
+| RAG-008 | Ignored `.env` loading | `test_glm_provider_agent_factory_reads_ignored_dotenv_file` | factory 可读取 ignored `.env`，不要求把 key export 到 shell | verified |
+| RAG-009 | Provider error redaction | `test_openai_compatible_transport_redacts_api_key_from_provider_errors` | provider HTTP error detail 中如果出现 API key，异常消息会替换成 `[REDACTED]` | verified |
+| RAG-010 | Real GLM provider integration | `test_glm_provider_agent_can_call_real_provider_when_key_is_configured` | 设置 `GLM_API_KEY` 或 `ZAI_API_KEY` 后，请真实 provider 产生 tool call 并进入 runtime | optional |
 
 ## 用例详情
 
@@ -222,7 +224,27 @@ provider 返回普通文本，不返回 `tool_calls`。agent 必须进入 blocke
 
 通过。
 
-### RAG-008 Provider Error Redaction
+### RAG-008 Ignored `.env` Loading
+
+**用例设计**
+
+在临时目录创建 `.env`，写入 `GLM_API_KEY`、`GLM_BASE_URL` 和 `GLM_MODEL`。factory 在没有 shell 环境变量时读取该 `.env`。
+
+**输出结果**
+
+- transport api key：来自 `.env`
+- transport base url：来自 `.env`
+- model：来自 `.env`
+
+**输出解释**
+
+这证明真实 provider integration 可以使用仓库根目录的 ignored `.env`，而不要求用户把 key export 到 shell。`.env.example` 可提交，真实 `.env` 被 `.gitignore` 排除。
+
+**结论**
+
+通过。
+
+### RAG-009 Provider Error Redaction
 
 **用例设计**
 
@@ -242,11 +264,11 @@ provider 返回普通文本，不返回 `tool_calls`。agent 必须进入 blocke
 
 通过。
 
-### RAG-009 Real GLM Provider Integration
+### RAG-010 Real GLM Provider Integration
 
 **用例设计**
 
-当本地环境设置了 `GLM_API_KEY` 或 `ZAI_API_KEY` 时，测试会调用真实 GLM/Z.AI OpenAI-compatible chat/completions endpoint。prompt 要求模型只调用一次 `echo` tool，随后 agent 把 provider 返回的 tool call 交给 runtime 执行。
+当本地环境或 ignored `.env` 设置了 `GLM_API_KEY` 或 `ZAI_API_KEY` 时，测试会调用真实 GLM/Z.AI OpenAI-compatible chat/completions endpoint。prompt 要求模型只调用一次 `echo` tool，随后 agent 把 provider 返回的 tool call 交给 runtime 执行。
 
 **默认输出结果**
 
@@ -259,10 +281,10 @@ provider 返回普通文本，不返回 `tool_calls`。agent 必须进入 blocke
 
 **运行方式**
 
-不要把 key 写入仓库。使用本机 shell 环境变量运行：
+不要把 key 写入可提交文件。推荐复制 `.env.example` 到 ignored `.env` 后运行：
 
 ```bash
-export GLM_API_KEY="<rotated-local-key>"
+cp .env.example .env
 python -m pytest tests/test_provider_real_agent.py::test_glm_provider_agent_can_call_real_provider_when_key_is_configured -q
 ```
 
@@ -289,7 +311,7 @@ export GLM_MODEL="glm-5.2"
 
 ## 后续建议
 
-1. 使用轮换后的本地 key 跑一次 RAG-009，并把不含 secret 的摘要结果更新到报告。
+1. 使用轮换后的本地 key 跑一次 RAG-010，并把不含 secret 的摘要结果更新到报告。
 2. 增加匿名化真实 provider payload fixture，覆盖 OpenAI、Anthropic、GLM、Codex 等更多 shape。
 3. 增加 optional LangGraph real graph test，不进默认 core test。
 4. 增加轻量 MCP server fixture，验证真实 MCP request/response。

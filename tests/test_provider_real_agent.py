@@ -114,6 +114,33 @@ def test_glm_provider_agent_factory_requires_api_key(monkeypatch, tmp_path):
         )
 
 
+def test_glm_provider_agent_factory_reads_ignored_dotenv_file(monkeypatch, tmp_path):
+    monkeypatch.delenv("GLM_API_KEY", raising=False)
+    monkeypatch.delenv("ZAI_API_KEY", raising=False)
+    env_path = tmp_path / ".env"
+    env_path.write_text(
+        "\n".join(
+            [
+                "GLM_API_KEY=dotenv-secret-key",
+                "GLM_BASE_URL=https://example.invalid/api/paas/v4",
+                "GLM_MODEL=glm-test-model",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    agent = create_glm_tool_calling_agent_from_env(
+        runtime=_runtime(tmp_path),
+        actor={"id": "glm-agent"},
+        environment="dev",
+        env_path=env_path,
+    )
+
+    assert agent.transport.api_key == "dotenv-secret-key"
+    assert agent.transport.base_url == "https://example.invalid/api/paas/v4"
+    assert agent.model == "glm-test-model"
+
+
 def test_openai_compatible_transport_redacts_api_key_from_provider_errors(monkeypatch):
     api_key = "test-secret-provider-key"
 

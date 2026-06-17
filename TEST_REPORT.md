@@ -84,14 +84,14 @@ python -m pytest -q > .agent-runtime/test-report-2026-06-17/pytest.txt
 
 ```text
 ........................................................................ [ 46%]
-....................................s................................... [ 92%]
-............                                                             [100%]
-155 passed, 1 skipped in 1.79s
+.....................................s.................................. [ 91%]
+.............                                                            [100%]
+156 passed, 1 skipped in 1.69s
 ```
 
 **输出解释**
 
-`155 passed, 1 skipped` 表示当前默认测试套件全部通过，且真实 GLM provider integration 因未设置本地 API key 被预期跳过。覆盖范围包括 adapter、audit、policy、sandbox、platform、release manifest、Code/CI pilot、staging pilot、SQLite audit、tracing、11 个基于用户指南场景的 acceptance tests、4 个自写 real-agent loop tests，以及 4 个默认可跑的 provider-agent tests。
+`156 passed, 1 skipped` 表示当前默认测试套件全部通过，且真实 GLM provider integration 因未设置本地 API key 被预期跳过。覆盖范围包括 adapter、audit、policy、sandbox、platform、release manifest、Code/CI pilot、staging pilot、SQLite audit、tracing、11 个基于用户指南场景的 acceptance tests、4 个自写 real-agent loop tests，以及 5 个默认可跑的 provider-agent tests。
 
 **结论**
 
@@ -586,7 +586,7 @@ Real-agent loop 测试单独维护在 [REAL_AGENT_TEST_REPORT.md](REAL_AGENT_TES
 
 GLM/OpenAI-compatible provider agent 测试单独维护在 [REAL_AGENT_TEST_REPORT.md](REAL_AGENT_TEST_REPORT.md)。综合测试报告只记录它作为回归套件的一部分被纳入 `python -m pytest`，并在 REQ-012 中保留追踪关系。
 
-默认回归中，fake transport 覆盖真实 provider 的 `tool_calls` response shape，验证 agent 会解析 tool name 和 arguments 后交给 runtime。真实 GLM/Z.AI 外部调用由 `tests/test_provider_real_agent.py::test_glm_provider_agent_can_call_real_provider_when_key_is_configured` 覆盖，只有设置 `GLM_API_KEY` 或 `ZAI_API_KEY` 时运行。
+默认回归中，fake transport 覆盖真实 provider 的 `tool_calls` response shape，验证 agent 会解析 tool name 和 arguments 后交给 runtime。真实 GLM/Z.AI 外部调用由 `tests/test_provider_real_agent.py::test_glm_provider_agent_can_call_real_provider_when_key_is_configured` 覆盖，只有在 shell 环境或 ignored `.env` 设置 `GLM_API_KEY` 或 `ZAI_API_KEY` 时运行。
 
 ## 回归范围说明
 
@@ -616,7 +616,7 @@ GLM/OpenAI-compatible provider agent 测试单独维护在 [REAL_AGENT_TEST_REPO
 | 范围 | 状态 | 原因 |
 | --- | --- | --- |
 | 真实 OpenAI / Anthropic / LangGraph / MCP / Codex provider payload 全量 replay | 部分覆盖 | 当前新增 GLM/OpenAI-compatible provider agent optional integration，但尚未收集多 provider 匿名 payload fixture |
-| 真实 GLM/Z.AI provider 外部调用 | 默认跳过 | 需要本地设置 `GLM_API_KEY` 或 `ZAI_API_KEY`，不能在仓库或公开报告中保存 secret |
+| 真实 GLM/Z.AI provider 外部调用 | 默认跳过 | 需要在 shell 环境或 ignored `.env` 设置 `GLM_API_KEY` 或 `ZAI_API_KEY`，不能在可提交文件或公开报告中保存 secret |
 | hosted control plane | 未测试 | 当前项目不自带 hosted control plane |
 | enterprise console / RBAC UI | 未测试 | 当前明确 unsupported |
 | remote executor production execution | 未测试 | 当前 remote executor 是 contract beta |

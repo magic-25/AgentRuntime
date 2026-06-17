@@ -87,10 +87,10 @@ PYTHONPATH=src python examples/minimal_agent.py
 python -m pytest tests/test_real_agent_scenarios.py tests/test_provider_real_agent.py -q
 ```
 
-真实 GLM/Z.AI provider integration 默认跳过。不要把 API key 写入仓库；如需本地验证，使用轮换后的本机环境变量：
+真实 GLM/Z.AI provider integration 默认跳过。不要把 API key 写入可提交文件；如需本地验证，可以复制 `.env.example` 到 ignored `.env` 并填入轮换后的 key：
 
 ```bash
-export GLM_API_KEY="<rotated-local-key>"
+cp .env.example .env
 python -m pytest tests/test_provider_real_agent.py::test_glm_provider_agent_can_call_real_provider_when_key_is_configured -q
 ```
 

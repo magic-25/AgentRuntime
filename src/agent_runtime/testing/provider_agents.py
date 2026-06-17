@@ -5,6 +5,7 @@ import os
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Protocol
 
 from agent_runtime.core.models import ToolResult
@@ -168,13 +169,15 @@ def create_glm_tool_calling_agent_from_env(
     runtime: AgentRuntime,
     actor: dict[str, Any],
     environment: str,
+    env_path: str | Path | None = ".env",
 ) -> OpenAICompatibleToolCallingAgent:
-    api_key = os.getenv("GLM_API_KEY") or os.getenv("ZAI_API_KEY")
+    dotenv = _read_dotenv(env_path)
+    api_key = _env_or_dotenv("GLM_API_KEY", dotenv) or _env_or_dotenv("ZAI_API_KEY", dotenv)
     if not api_key:
         raise ProviderAgentError("GLM_API_KEY or ZAI_API_KEY is required")
-    base_url = os.getenv("GLM_BASE_URL") or os.getenv("ZAI_BASE_URL") or DEFAULT_GLM_BASE_URL
-    model = os.getenv("GLM_MODEL") or os.getenv("ZAI_MODEL") or DEFAULT_GLM_MODEL
-    timeout_seconds = float(os.getenv("GLM_TIMEOUT_SECONDS", "30"))
+    base_url = _env_or_dotenv("GLM_BASE_URL", dotenv) or _env_or_dotenv("ZAI_BASE_URL", dotenv) or DEFAULT_GLM_BASE_URL
+    model = _env_or_dotenv("GLM_MODEL", dotenv) or _env_or_dotenv("ZAI_MODEL", dotenv) or DEFAULT_GLM_MODEL
+    timeout_seconds = float(_env_or_dotenv("GLM_TIMEOUT_SECONDS", dotenv) or "30")
     return OpenAICompatibleToolCallingAgent(
         runtime=runtime,
         transport=OpenAICompatibleChatCompletionTransport(
@@ -210,3 +213,29 @@ def _redact_secret(value: str, secret: str) -> str:
     if not secret:
         return value
     return value.replace(secret, "[REDACTED]")
+
+
+def _env_or_dotenv(key: str, dotenv: dict[str, str]) -> str | None:
+    return os.getenv(key) or dotenv.get(key)
+
+
+def _read_dotenv(env_path: str | Path | None) -> dict[str, str]:
+    if env_path is None:
+        return {}
+    path = Path(env_path)
+    if not path.exists():
+        return {}
+    values: dict[str, str] = {}
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        values[key.strip()] = _strip_dotenv_quotes(value.strip())
+    return values
+
+
+def _strip_dotenv_quotes(value: str) -> str:
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+        return value[1:-1]
+    return value
