@@ -84,8 +84,7 @@ class OpenAICompatibleToolCallingAgent:
 
     def run(self, prompt: str) -> ProviderToolCallingTranscript:
         decisions = [f"request:{self.provider}"]
-        response = self.transport.complete(self._payload(prompt))
-        tool_call = self._first_tool_call(response)
+        tool_call = self._request_tool_call(prompt)
         if tool_call is None:
             decisions.append("blocked:provider.no_tool_call")
             return ProviderToolCallingTranscript(
@@ -117,6 +116,16 @@ class OpenAICompatibleToolCallingAgent:
             decisions=decisions,
             error=result.error,
         )
+
+    def request_tool_call(self, prompt: str) -> tuple[str, dict[str, Any]]:
+        tool_call = self._request_tool_call(prompt)
+        if tool_call is None:
+            raise ProviderAgentError("provider.no_tool_call")
+        return tool_call
+
+    def _request_tool_call(self, prompt: str) -> tuple[str, dict[str, Any]] | None:
+        response = self.transport.complete(self._payload(prompt))
+        return self._first_tool_call(response)
 
     def _payload(self, prompt: str) -> dict[str, Any]:
         return {

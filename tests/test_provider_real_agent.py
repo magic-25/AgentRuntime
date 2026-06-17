@@ -22,13 +22,13 @@ class FakeOpenAICompatibleTransport:
         return self.response
 
 
-def _runtime(tmp_path):
+def _runtime(tmp_path, allow_echo=True, audit_name="provider-audit.jsonl"):
     runtime = AgentRuntime.from_dict(
         {
             "version": 1,
             "default_decision": "deny",
-            "audit": {"path": str(tmp_path / "provider-audit.jsonl")},
-            "rules": [{"id": "allow-echo", "environment": "dev", "tool": "echo", "effect": "allow"}],
+            "audit": {"path": str(tmp_path / audit_name)},
+            "rules": [{"id": "allow-echo", "environment": "dev", "tool": "echo", "effect": "allow"}] if allow_echo else [],
         }
     )
 
@@ -111,6 +111,7 @@ def test_glm_provider_agent_factory_requires_api_key(monkeypatch, tmp_path):
             runtime=_runtime(tmp_path),
             actor={"id": "glm-agent"},
             environment="dev",
+            env_path=None,
         )
 
 
@@ -175,19 +176,85 @@ def test_openai_compatible_transport_redacts_api_key_from_provider_errors(monkey
     assert "[REDACTED]" in str(error.value)
 
 
+def _skip_transient_provider_error(error: ProviderAgentError):
+    if str(error).startswith("provider.request_failed:"):
+        pytest.skip(f"Transient provider transport failure: {error}")
+    raise error
+
+
 @pytest.mark.integration
 def test_glm_provider_agent_can_call_real_provider_when_key_is_configured(tmp_path):
-    if not (os.getenv("GLM_API_KEY") or os.getenv("ZAI_API_KEY")):
-        pytest.skip("Set GLM_API_KEY or ZAI_API_KEY to run the real GLM provider integration test")
+    try:
+        agent = create_glm_tool_calling_agent_from_env(
+            runtime=_runtime(tmp_path),
+            actor={"id": "glm-agent"},
+            environment="dev",
+        )
+    except ProviderAgentError:
+        pytest.skip("Set GLM_API_KEY or ZAI_API_KEY in shell env or ignored .env to run the real GLM provider integration test")
 
-    agent = create_glm_tool_calling_agent_from_env(
-        runtime=_runtime(tmp_path),
-        actor={"id": "glm-agent"},
-        environment="dev",
-    )
-
-    transcript = agent.run("Call the echo tool exactly once with message 'hello from glm provider'.")
+    try:
+        transcript = agent.run("Call the echo tool exactly once with message 'hello from glm provider'.")
+    except ProviderAgentError as error:
+        _skip_transient_provider_error(error)
 
     assert transcript.status == "completed"
     assert transcript.raw_tool_name == "echo"
     assert transcript.tool_results[0].status == "success"
+
+
+@pytest.mark.integration
+def test_glm_provider_tool_call_comparison_with_and_without_runtime(tmp_path):
+    try:
+        agent = create_glm_tool_calling_agent_from_env(
+            runtime=_runtime(tmp_path, audit_name="allow-audit.jsonl"),
+            actor={"id": "glm-agent"},
+            environment="dev",
+        )
+    except ProviderAgentError:
+        pytest.skip("Set GLM_API_KEY or ZAI_API_KEY in shell env or ignored .env to run the runtime comparison test")
+
+    try:
+        tool_name, arguments = agent.request_tool_call("Call the echo tool exactly once with message 'runtime comparison'.")
+    except ProviderAgentError as error:
+        _skip_transient_provider_error(error)
+    assert tool_name == "echo"
+
+    allow_runtime = _runtime(tmp_path, allow_echo=True, audit_name="allow-audit.jsonl")
+    allow_result = allow_runtime.call_tool(
+        tool_name,
+        arguments,
+        actor={"id": "glm-agent"},
+        environment="dev",
+        adapter_source="glm",
+    )
+
+    deny_runtime = _runtime(tmp_path, allow_echo=False, audit_name="deny-audit.jsonl")
+    denied_result = deny_runtime.call_tool(
+        tool_name,
+        arguments,
+        actor={"id": "glm-agent"},
+        environment="dev",
+        adapter_source="glm",
+    )
+
+    def direct_echo(message: str) -> dict[str, str]:
+        return {"message": message}
+
+    direct_output = direct_echo(**arguments)
+
+    assert allow_result.status == "success"
+    assert allow_result.output == direct_output
+    assert allow_result.run_id is not None
+    assert denied_result.status == "denied"
+    assert denied_result.output is None
+    assert direct_output == {"message": arguments["message"]}
+
+    allow_audit = (tmp_path / "allow-audit.jsonl").read_text(encoding="utf-8")
+    deny_audit = (tmp_path / "deny-audit.jsonl").read_text(encoding="utf-8")
+    assert "ToolCallRequested" in allow_audit
+    assert "PolicyEvaluated" in allow_audit
+    assert "ToolExecutionFinished" in allow_audit
+    assert "ToolCallRequested" in deny_audit
+    assert "PolicyEvaluated" in deny_audit
+    assert "RuntimeError" in deny_audit

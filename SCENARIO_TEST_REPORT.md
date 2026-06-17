@@ -20,7 +20,7 @@
 
 ```text
 tests/test_scenario_based_user_guide.py ...........                      [ 97%]
-156 passed, 1 skipped in 1.69s
+158 passed in 15.49s
 ```
 
 需要明确的边界：

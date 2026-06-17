@@ -17,6 +17,7 @@ ToolCall -> Context Filter -> Policy Engine -> Approval Gate -> Executor -> Resu
 - [测试报告](TEST_REPORT.md)
 - [场景测试报告](SCENARIO_TEST_REPORT.md)
 - [Real Agent 测试报告](REAL_AGENT_TEST_REPORT.md)
+- [Provider Agent Runtime 对比测试报告](PROVIDER_RUNTIME_COMPARISON_REPORT.md)
 - [开源 Agent 采用评估](OPEN_SOURCE_AGENT_EVALUATION.md)
 - [贡献指南](CONTRIBUTING.md)
 - [安全策略](SECURITY.md)

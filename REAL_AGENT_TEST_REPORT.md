@@ -31,14 +31,14 @@
 | 测试文件 | `tests/test_real_agent_scenarios.py`，`tests/test_provider_real_agent.py` |
 | 默认执行命令 | `python -m pytest tests/test_real_agent_scenarios.py tests/test_provider_real_agent.py -q` |
 | 真实 GLM provider 命令 | 设置 `GLM_API_KEY` 或 `ZAI_API_KEY` 后运行 `python -m pytest tests/test_provider_real_agent.py::test_glm_provider_agent_can_call_real_provider_when_key_is_configured -q` |
-| 默认用例数量 | 9 passed，1 skipped |
-| 结果 | 默认测试通过，真实 provider 测试默认跳过 |
+| 本地 `.env` 用例数量 | 11 passed |
+| 结果 | 默认无 key 时真实 provider 测试跳过；本地 `.env` 有 key 时真实 provider 测试通过 |
 
 ## 测试输出
 
 ```text
-.........s                                                               [100%]
-9 passed, 1 skipped in 0.14s
+...........                                                              [100%]
+11 passed in 18.53s
 ```
 
 ## Agent 类型
@@ -65,6 +65,7 @@
 | RAG-008 | Ignored `.env` loading | `test_glm_provider_agent_factory_reads_ignored_dotenv_file` | factory 可读取 ignored `.env`，不要求把 key export 到 shell | verified |
 | RAG-009 | Provider error redaction | `test_openai_compatible_transport_redacts_api_key_from_provider_errors` | provider HTTP error detail 中如果出现 API key，异常消息会替换成 `[REDACTED]` | verified |
 | RAG-010 | Real GLM provider integration | `test_glm_provider_agent_can_call_real_provider_when_key_is_configured` | 设置 `GLM_API_KEY` 或 `ZAI_API_KEY` 后，请真实 provider 产生 tool call 并进入 runtime | optional |
+| RAG-011 | Runtime vs direct execution comparison | `test_glm_provider_tool_call_comparison_with_and_without_runtime` | 同一个真实 provider tool call 对比 runtime allow、runtime deny、裸函数直连 | verified with local `.env` |
 
 ## 用例详情
 
@@ -299,6 +300,32 @@ export GLM_MODEL="glm-5.2"
 
 默认跳过；具备 key 时可执行。
 
+### RAG-011 Runtime vs Direct Execution Comparison
+
+**用例设计**
+
+使用真实 GLM provider 产生一次 `echo` tool call，然后把同一个 tool name 和 arguments 分别送入三条路径：
+
+- runtime allow：有 allow rule 的 Agent Runtime。
+- runtime deny：没有 allow rule 的 Agent Runtime。
+- direct execution：不使用 runtime，直接调用本地函数。
+
+**输出结果**
+
+- runtime allow：`status=success`，有 `run_id`，audit 包含 `ToolCallRequested`、`PolicyEvaluated`、`ToolExecutionStarted`、`ToolExecutionFinished`。
+- runtime deny：`status=denied`，`error=default_decision`，audit 包含 `ToolCallRequested`、`PolicyEvaluated`、`RuntimeError`。
+- direct execution：返回 `{"message": "runtime comparison"}`，没有 policy decision、没有 audit、没有 run id、没有统一 status envelope。
+
+**输出解释**
+
+这证明 Agent Runtime 的生产价值不是替代 provider 产生 tool call，而是在真实 provider tool call 进入工具执行前加上统一 policy、audit、deny 和 result envelope。不使用 runtime 时也可以得到业务输出，但无法统一治理和复盘。
+
+详细报告见 [PROVIDER_RUNTIME_COMPARISON_REPORT.md](PROVIDER_RUNTIME_COMPARISON_REPORT.md)。
+
+**结论**
+
+通过。
+
 ## 未覆盖范围
 
 | 范围 | 原因 |
@@ -311,7 +338,7 @@ export GLM_MODEL="glm-5.2"
 
 ## 后续建议
 
-1. 使用轮换后的本地 key 跑一次 RAG-010，并把不含 secret 的摘要结果更新到报告。
+1. 为 provider transport 增加 retry/backoff，降低真实 provider 网络波动对测试的影响。
 2. 增加匿名化真实 provider payload fixture，覆盖 OpenAI、Anthropic、GLM、Codex 等更多 shape。
 3. 增加 optional LangGraph real graph test，不进默认 core test。
 4. 增加轻量 MCP server fixture，验证真实 MCP request/response。

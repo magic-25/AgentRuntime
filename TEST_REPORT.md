@@ -16,7 +16,7 @@
 - Code/CI reference pilot 当前是 `digest-only` report，不是完整 runtime audit chain。
 - `remote_executor` 当前是 `contract_beta`，相关 conformance 返回 `passed=false` 是预期边界，不是回归。
 - Docker smoke evidence 不证明绝对 sandbox escape prevention。
-- 当前没有验证真实 provider SDK 全量 payload，也没有验证 hosted control plane；GLM/Z.AI provider integration 已提供 optional test，但本轮默认回归因未设置本地 key 而跳过真实外部调用。
+- 当前没有验证真实 provider SDK 全量 payload，也没有验证 hosted control plane；GLM/Z.AI provider integration 已提供 optional test，本轮使用 ignored `.env` 中的本地 key 执行了真实外部调用。
 
 ## 测试环境
 
@@ -44,7 +44,7 @@
 6. **Runtime Evidence**：验证 Docker runtime smoke evidence 是否能生成，并解释其限制。
 7. **Platform Contract**：验证 platform failure simulation 覆盖 control plane 相关失败模式。
 8. **Real-Agent Loop**：验证自写 agent loop 会产生 tool call、读取结果并继续或停止。
-9. **Provider-Agent Optional Integration**：验证 GLM/OpenAI-compatible provider tool-call shape 可以被 agent 解析并进入 runtime；真实外部调用需要本地 key。
+9. **Provider-Agent Optional Integration**：验证 GLM/OpenAI-compatible provider tool-call shape 可以被 agent 解析并进入 runtime；本轮使用 ignored `.env` 中的本地 key 运行真实 provider 测试。
 10. **Pilot E2E**：验证 Code/CI reference pilot 和 staging internal admin pilot 的实际可跑路径。
 
 测试策略不是只看“命令是否返回 0”，还要解释输出语义。例如 remote backend conformance 返回 `passed=false`，但原因是 `remote.contract_beta_only`，这符合当前 support matrix。
@@ -83,15 +83,15 @@ python -m pytest -q > .agent-runtime/test-report-2026-06-17/pytest.txt
 **输出结果**
 
 ```text
-........................................................................ [ 46%]
-.....................................s.................................. [ 91%]
-.............                                                            [100%]
-156 passed, 1 skipped in 1.69s
+........................................................................ [ 45%]
+........................................................................ [ 91%]
+..............                                                           [100%]
+158 passed in 15.49s
 ```
 
 **输出解释**
 
-`156 passed, 1 skipped` 表示当前默认测试套件全部通过，且真实 GLM provider integration 因未设置本地 API key 被预期跳过。覆盖范围包括 adapter、audit、policy、sandbox、platform、release manifest、Code/CI pilot、staging pilot、SQLite audit、tracing、11 个基于用户指南场景的 acceptance tests、4 个自写 real-agent loop tests，以及 5 个默认可跑的 provider-agent tests。
+`158 passed` 表示当前测试套件全部通过，且真实 GLM provider integration 与 runtime/direct 对比测试都已使用 ignored `.env` 中的本地 API key 执行。覆盖范围包括 adapter、audit、policy、sandbox、platform、release manifest、Code/CI pilot、staging pilot、SQLite audit、tracing、11 个基于用户指南场景的 acceptance tests、4 个自写 real-agent loop tests，以及 7 个 provider-agent tests。
 
 **结论**
 
@@ -584,9 +584,9 @@ Real-agent loop 测试单独维护在 [REAL_AGENT_TEST_REPORT.md](REAL_AGENT_TES
 
 ### TC-015 GLM/OpenAI-Compatible Provider Agent
 
-GLM/OpenAI-compatible provider agent 测试单独维护在 [REAL_AGENT_TEST_REPORT.md](REAL_AGENT_TEST_REPORT.md)。综合测试报告只记录它作为回归套件的一部分被纳入 `python -m pytest`，并在 REQ-012 中保留追踪关系。
+GLM/OpenAI-compatible provider agent 测试单独维护在 [REAL_AGENT_TEST_REPORT.md](REAL_AGENT_TEST_REPORT.md)，runtime/direct 对比测试详见 [PROVIDER_RUNTIME_COMPARISON_REPORT.md](PROVIDER_RUNTIME_COMPARISON_REPORT.md)。综合测试报告只记录它作为回归套件的一部分被纳入 `python -m pytest`，并在 REQ-012 中保留追踪关系。
 
-默认回归中，fake transport 覆盖真实 provider 的 `tool_calls` response shape，验证 agent 会解析 tool name 和 arguments 后交给 runtime。真实 GLM/Z.AI 外部调用由 `tests/test_provider_real_agent.py::test_glm_provider_agent_can_call_real_provider_when_key_is_configured` 覆盖，只有在 shell 环境或 ignored `.env` 设置 `GLM_API_KEY` 或 `ZAI_API_KEY` 时运行。
+回归中，fake transport 覆盖真实 provider 的 `tool_calls` response shape，验证 agent 会解析 tool name 和 arguments 后交给 runtime。真实 GLM/Z.AI 外部调用由 `tests/test_provider_real_agent.py::test_glm_provider_agent_can_call_real_provider_when_key_is_configured` 覆盖；runtime/direct 对比由 `test_glm_provider_tool_call_comparison_with_and_without_runtime` 覆盖。二者只有在 shell 环境或 ignored `.env` 设置 `GLM_API_KEY` 或 `ZAI_API_KEY` 时运行。
 
 ## 回归范围说明
 
@@ -607,7 +607,7 @@ GLM/OpenAI-compatible provider agent 测试单独维护在 [REAL_AGENT_TEST_REPO
 - production pilot report。
 - sandbox abuse、conformance、hardening、runtime evidence、sidecar、support matrix。
 - scenario-based user guide acceptance。
-- provider-agent tool-call parsing 和 GLM optional integration secret boundary。
+- provider-agent tool-call parsing、GLM optional integration、runtime/direct execution comparison 和 secret boundary。
 - SQLite audit。
 - tracing。
 
@@ -616,7 +616,7 @@ GLM/OpenAI-compatible provider agent 测试单独维护在 [REAL_AGENT_TEST_REPO
 | 范围 | 状态 | 原因 |
 | --- | --- | --- |
 | 真实 OpenAI / Anthropic / LangGraph / MCP / Codex provider payload 全量 replay | 部分覆盖 | 当前新增 GLM/OpenAI-compatible provider agent optional integration，但尚未收集多 provider 匿名 payload fixture |
-| 真实 GLM/Z.AI provider 外部调用 | 默认跳过 | 需要在 shell 环境或 ignored `.env` 设置 `GLM_API_KEY` 或 `ZAI_API_KEY`，不能在可提交文件或公开报告中保存 secret |
+| 真实 GLM/Z.AI provider 外部调用 | 已测试 | 本轮使用 ignored `.env` 中的本地 key 运行；secret 不进入可提交文件或公开报告 |
 | hosted control plane | 未测试 | 当前项目不自带 hosted control plane |
 | enterprise console / RBAC UI | 未测试 | 当前明确 unsupported |
 | remote executor production execution | 未测试 | 当前 remote executor 是 contract beta |
