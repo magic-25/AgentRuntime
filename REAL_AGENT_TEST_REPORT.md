@@ -31,14 +31,14 @@
 | 测试文件 | `tests/test_real_agent_scenarios.py`，`tests/test_provider_real_agent.py` |
 | 默认执行命令 | `python -m pytest tests/test_real_agent_scenarios.py tests/test_provider_real_agent.py -q` |
 | 真实 GLM provider 命令 | 设置 `GLM_API_KEY` 或 `ZAI_API_KEY` 后运行 `python -m pytest tests/test_provider_real_agent.py::test_glm_provider_agent_can_call_real_provider_when_key_is_configured -q` |
-| 本地 `.env` 用例数量 | 13 passed |
+| 本地 `.env` 用例数量 | 19 passed |
 | 结果 | 默认无 key 时真实 provider 测试跳过；本地 `.env` 有 key 时真实 provider 测试通过 |
 
 ## 测试输出
 
 ```text
-.............                                                            [100%]
-13 passed in 25.61s
+...................                                                      [100%]
+19 passed in 28.86s
 ```
 
 ## Agent 类型
@@ -50,6 +50,7 @@
 | `OpsDiagnosticRealAgent` | 先调用只读诊断命令，再尝试未知写操作并记录 denied | 无 |
 | `MCPStyleRealAgent` | 生成 MCP-style tool call，经 MCP adapter 翻译后进入 runtime | 无 |
 | `OpenAICompatibleToolCallingAgent` | 构造 OpenAI-compatible chat/completions 请求，解析 provider 返回的 `tool_calls`，再交给 runtime 执行 | 默认无；真实 GLM integration 需要 `GLM_API_KEY` 或 `ZAI_API_KEY` |
+| `LangGraphToolCallingAgent` | 执行 LangGraph graph，由 graph 选择 tool call，再对比未注册 direct execution 和注册后 runtime execution | optional `langgraph` |
 
 ## 测试 Agent 说明
 
@@ -62,6 +63,7 @@
 | `OpsDiagnosticRealAgent` | 运维诊断 agent | 先调用只读状态检查，再尝试未知写操作 | 验证只读诊断和危险操作能在同一 agent run 中被区分 |
 | `MCPStyleRealAgent` | MCP tool-calling agent | 生成 MCP-style payload，经 MCP adapter 翻译后进入 runtime | 验证 MCP adapter 只翻译、不授权、不执行 |
 | `OpenAICompatibleToolCallingAgent` | 真实 provider tool-calling agent | 向 GLM/Z.AI 或 fake OpenAI-compatible transport 发起 chat/completions 请求，解析 `tool_calls`，再决定走 runtime 或 direct tool | 验证真实 LLM provider 产生的 tool call 是否能被 runtime 治理 |
+| `LangGraphToolCallingAgent` | LangGraph framework agent | 调用已编译 LangGraph `StateGraph`，读取 graph 输出的 tool name 和 arguments | 验证 framework agent 接入 runtime registration contract |
 
 ### `OpenAICompatibleToolCallingAgent` 的具体行为
 
@@ -99,6 +101,10 @@
 | RAG-010 | Real GLM provider integration | `test_glm_provider_agent_can_call_real_provider_when_key_is_configured` | 设置 `GLM_API_KEY` 或 `ZAI_API_KEY` 后，请真实 provider 产生 tool call 并进入 runtime | optional |
 | RAG-011 | Fake provider agent registration comparison | `test_same_agent_registration_comparison_with_fake_provider` | 同一个 agent 未注册时直连工具，注册后进入 runtime lifecycle/audit | verified |
 | RAG-012 | Real GLM agent registration comparison | `test_same_agent_unregistered_vs_registered_runtime_execution` | 同一个真实 GLM agent 未注册运行 vs 注册到 Agent Runtime 后运行 | verified with local `.env` |
+| RAG-013 | Agent registry contract | `test_register_agent_records_formal_metadata_profile_capabilities_and_lifecycle` | `AgentMetadata`、`RuntimeProfile`、capabilities、lifecycle events 进入 audit | verified |
+| RAG-014 | Registered agent deny path | `test_registered_agent_deny_path_cannot_fall_back_to_direct_execution` | policy deny 时工具不执行，注册 agent 不回落 direct execution | verified |
+| RAG-015 | Provider retry/backoff | `test_openai_compatible_transport_retries_transient_network_errors`，`test_openai_compatible_transport_retries_429_and_5xx_then_redacts_final_error` | EOF、429、5xx 使用 backoff retry，最终错误 redacts key | verified |
+| RAG-016 | LangGraph optional framework agent | `test_langgraph_agent_compares_unregistered_and_registered_runtime_execution` | LangGraph graph 未注册直连工具，注册后进入 runtime lifecycle/audit | verified |
 
 ## 用例详情
 
@@ -386,15 +392,14 @@ export GLM_MODEL="glm-5.2"
 | 范围 | 原因 |
 | --- | --- |
 | 真实 OpenAI / Anthropic API 调用 | 默认测试不能依赖 API key 和网络；当前只提供 GLM/Z.AI optional integration |
-| 真实 LangGraph graph execution | 当前先避免引入重依赖，后续可做 optional test extra |
+| 更多 LangGraph graph pattern | 当前只验证单节点 StateGraph 选择一个 tool call |
 | 真实 MCP server 进程 | 当前使用 MCP-style payload 和 adapter，后续可加轻量 MCP server fixture |
 | AutoGen / CrewAI / 其他开源 agent 框架 | 依赖重且版本波动，适合作为 optional integration suite |
 | hosted cloud agent runtime | 当前没有 hosted control plane 或 hosted executor |
 
 ## 后续建议
 
-1. 为 provider transport 增加 retry/backoff，降低真实 provider 网络波动对测试的影响。
-2. 增加匿名化真实 provider payload fixture，覆盖 OpenAI、Anthropic、GLM、Codex 等更多 shape。
-3. 增加 optional LangGraph real graph test，不进默认 core test。
-4. 增加轻量 MCP server fixture，验证真实 MCP request/response。
-5. 将 Code/CI real agent 的 digest-only pilot report 升级为 runtime audit chain，或持续明确该边界。
+1. 增加匿名化真实 provider payload fixture，覆盖 OpenAI、Anthropic、GLM、Codex 等更多 shape。
+2. 增加轻量 MCP server fixture，验证真实 MCP request/response。
+3. 增加更多 LangGraph graph pattern，例如多节点、条件边和多工具选择。
+4. 将 Code/CI real agent 的 digest-only pilot report 升级为 runtime audit chain，或持续明确该边界。

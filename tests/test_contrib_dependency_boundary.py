@@ -22,3 +22,5 @@ def test_pyproject_defines_contrib_optional_dependency_groups():
     assert "contrib-sandbox" in optional
     assert "pilot-code-ci" in optional
     assert "real-agents" in optional
+    assert "framework-agents" in optional
+    assert "langgraph" in optional["framework-agents"]

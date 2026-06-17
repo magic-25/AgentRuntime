@@ -14,10 +14,13 @@ from agent_runtime.testing.provider_agents import (
     ProviderToolCallingTranscript,
     create_glm_tool_calling_agent_from_env,
 )
+from agent_runtime.testing.langgraph_agents import LangGraphAgentTranscript, LangGraphToolCallingAgent
 
 __all__ = [
     "CodeCIAgentTranscript",
     "CodeCIRealAgent",
+    "LangGraphAgentTranscript",
+    "LangGraphToolCallingAgent",
     "MCPStyleAgentTranscript",
     "MCPStyleRealAgent",
     "OpenAICompatibleChatCompletionTransport",

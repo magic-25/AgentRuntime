@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -33,6 +34,7 @@ class ProviderToolCallingTranscript:
     decisions: list[str]
     registration: str = "runtime"
     agent_id: str | None = None
+    agent_metadata: dict[str, Any] = field(default_factory=dict)
     raw_tool_name: str | None = None
     raw_arguments: dict[str, Any] = field(default_factory=dict)
     tool_results: list[ToolResult] = field(default_factory=list)
@@ -41,31 +43,55 @@ class ProviderToolCallingTranscript:
 
 
 class OpenAICompatibleChatCompletionTransport:
-    def __init__(self, api_key: str, base_url: str, timeout_seconds: float = 30.0) -> None:
+    def __init__(
+        self,
+        api_key: str,
+        base_url: str,
+        timeout_seconds: float = 30.0,
+        max_retries: int = 0,
+        retry_backoff_seconds: float = 0.0,
+        sleeper: Any | None = None,
+    ) -> None:
         if not api_key:
             raise ProviderAgentError("api_key is required")
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
         self.timeout_seconds = timeout_seconds
+        self.max_retries = max(0, max_retries)
+        self.retry_backoff_seconds = max(0.0, retry_backoff_seconds)
+        self.sleeper = sleeper or time.sleep
 
     def complete(self, payload: dict[str, Any]) -> dict[str, Any]:
-        request = urllib.request.Request(
-            f"{self.base_url}/chat/completions",
-            data=json.dumps(payload).encode("utf-8"),
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-            },
-            method="POST",
-        )
-        try:
-            with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
-                return json.loads(response.read().decode("utf-8"))
-        except urllib.error.HTTPError as error:
-            detail = _redact_secret(error.read().decode("utf-8", errors="replace"), self.api_key)
-            raise ProviderAgentError(f"provider.http_error:{error.code}:{_truncate(detail)}") from error
-        except (urllib.error.URLError, TimeoutError) as error:
-            raise ProviderAgentError(f"provider.request_failed:{error}") from error
+        for attempt in range(self.max_retries + 1):
+            request = urllib.request.Request(
+                f"{self.base_url}/chat/completions",
+                data=json.dumps(payload).encode("utf-8"),
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                },
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
+                    return json.loads(response.read().decode("utf-8"))
+            except urllib.error.HTTPError as error:
+                detail = _redact_secret(error.read().decode("utf-8", errors="replace"), self.api_key)
+                if _retryable_http_status(error.code) and attempt < self.max_retries:
+                    self._sleep_before_retry(attempt)
+                    continue
+                raise ProviderAgentError(f"provider.http_error:{error.code}:{_truncate(detail)}") from error
+            except (urllib.error.URLError, TimeoutError) as error:
+                if attempt < self.max_retries:
+                    self._sleep_before_retry(attempt)
+                    continue
+                raise ProviderAgentError(f"provider.request_failed:{error}") from error
+        raise ProviderAgentError("provider.retry_exhausted")
+
+    def _sleep_before_retry(self, attempt: int) -> None:
+        delay = self.retry_backoff_seconds * (2**attempt)
+        if delay > 0:
+            self.sleeper(delay)
 
 
 class OpenAICompatibleToolCallingAgent:
@@ -231,12 +257,16 @@ def create_glm_tool_calling_agent_from_env(
     base_url = _env_or_dotenv("GLM_BASE_URL", dotenv) or _env_or_dotenv("ZAI_BASE_URL", dotenv) or DEFAULT_GLM_BASE_URL
     model = _env_or_dotenv("GLM_MODEL", dotenv) or _env_or_dotenv("ZAI_MODEL", dotenv) or DEFAULT_GLM_MODEL
     timeout_seconds = float(_env_or_dotenv("GLM_TIMEOUT_SECONDS", dotenv) or "30")
+    max_retries = int(_env_or_dotenv("GLM_MAX_RETRIES", dotenv) or "0")
+    retry_backoff_seconds = float(_env_or_dotenv("GLM_RETRY_BACKOFF_SECONDS", dotenv) or "0")
     return OpenAICompatibleToolCallingAgent(
         runtime=runtime,
         transport=OpenAICompatibleChatCompletionTransport(
             api_key=api_key,
             base_url=base_url,
             timeout_seconds=timeout_seconds,
+            max_retries=max_retries,
+            retry_backoff_seconds=retry_backoff_seconds,
         ),
         provider="glm",
         model=model,
@@ -266,6 +296,10 @@ def _redact_secret(value: str, secret: str) -> str:
     if not secret:
         return value
     return value.replace(secret, "[REDACTED]")
+
+
+def _retryable_http_status(status: int) -> bool:
+    return status == 429 or 500 <= status <= 599
 
 
 def _env_or_dotenv(key: str, dotenv: dict[str, str]) -> str | None:

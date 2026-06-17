@@ -23,6 +23,37 @@ class ToolDefinition:
 
 
 @dataclass(frozen=True)
+class RuntimeProfile:
+    environment: str
+    execution_mode: str = "runtime_tools"
+    max_tool_calls: int = 1
+    network_access: bool = False
+    sandbox_required: bool = False
+    approval_required: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class AgentMetadata:
+    agent_id: str
+    name: str
+    provider: str
+    framework: str
+    version: str = ""
+    description: str = ""
+    capabilities: list[str] = field(default_factory=list)
+    runtime_profile: RuntimeProfile = field(default_factory=lambda: RuntimeProfile(environment="dev"))
+    lifecycle_events: list[str] = field(
+        default_factory=lambda: ["AgentRegistered", "AgentRunStarted", "AgentRunFinished"]
+    )
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
 class ToolCall:
     tool_call_id: str
     run_id: str

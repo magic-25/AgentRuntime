@@ -1,5 +1,6 @@
 import json
 import os
+import ssl
 
 import pytest
 
@@ -125,6 +126,8 @@ def test_glm_provider_agent_factory_reads_ignored_dotenv_file(monkeypatch, tmp_p
                 "GLM_API_KEY=dotenv-secret-key",
                 "GLM_BASE_URL=https://example.invalid/api/paas/v4",
                 "GLM_MODEL=glm-test-model",
+                "GLM_MAX_RETRIES=3",
+                "GLM_RETRY_BACKOFF_SECONDS=0.5",
             ]
         ),
         encoding="utf-8",
@@ -139,6 +142,8 @@ def test_glm_provider_agent_factory_reads_ignored_dotenv_file(monkeypatch, tmp_p
 
     assert agent.transport.api_key == "dotenv-secret-key"
     assert agent.transport.base_url == "https://example.invalid/api/paas/v4"
+    assert agent.transport.max_retries == 3
+    assert agent.transport.retry_backoff_seconds == 0.5
     assert agent.model == "glm-test-model"
 
 
@@ -172,6 +177,89 @@ def test_openai_compatible_transport_redacts_api_key_from_provider_errors(monkey
     with pytest.raises(ProviderAgentError) as error:
         transport.complete({"model": "glm-5.2", "messages": []})
 
+    assert api_key not in str(error.value)
+    assert "[REDACTED]" in str(error.value)
+
+
+def test_openai_compatible_transport_retries_transient_network_errors(monkeypatch):
+    attempts = []
+
+    class SuccessResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return None
+
+        def read(self):
+            return json.dumps({"choices": [{"message": {"tool_calls": []}}]}).encode("utf-8")
+
+    def flaky_urlopen(request, timeout):
+        attempts.append(request)
+        if len(attempts) < 3:
+            raise urllib_error.URLError(ssl.SSLEOFError("eof"))
+        return SuccessResponse()
+
+    from urllib import error as urllib_error
+
+    sleeps = []
+    monkeypatch.setattr("urllib.request.urlopen", flaky_urlopen)
+    transport = OpenAICompatibleChatCompletionTransport(
+        api_key="test-secret-provider-key",
+        base_url="https://example.invalid/api/paas/v4",
+        max_retries=2,
+        retry_backoff_seconds=0.25,
+        sleeper=sleeps.append,
+    )
+
+    response = transport.complete({"model": "glm-5.2", "messages": []})
+
+    assert response == {"choices": [{"message": {"tool_calls": []}}]}
+    assert len(attempts) == 3
+    assert sleeps == [0.25, 0.5]
+
+
+def test_openai_compatible_transport_retries_429_and_5xx_then_redacts_final_error(monkeypatch):
+    api_key = "test-secret-provider-key"
+    attempts = []
+
+    class ErrorBody:
+        def __init__(self, body):
+            self.body = body
+
+        def read(self):
+            return self.body.encode("utf-8")
+
+        def close(self):
+            return None
+
+    def always_rate_limited(request, timeout):
+        attempts.append(request)
+        raise urllib_error.HTTPError(
+            url=request.full_url,
+            code=429,
+            msg="Too Many Requests",
+            hdrs={},
+            fp=ErrorBody(f"retry later for {api_key}"),
+        )
+
+    from urllib import error as urllib_error
+
+    sleeps = []
+    monkeypatch.setattr("urllib.request.urlopen", always_rate_limited)
+    transport = OpenAICompatibleChatCompletionTransport(
+        api_key=api_key,
+        base_url="https://example.invalid/api/paas/v4",
+        max_retries=2,
+        retry_backoff_seconds=0.1,
+        sleeper=sleeps.append,
+    )
+
+    with pytest.raises(ProviderAgentError) as error:
+        transport.complete({"model": "glm-5.2", "messages": []})
+
+    assert len(attempts) == 3
+    assert sleeps == [0.1, 0.2]
     assert api_key not in str(error.value)
     assert "[REDACTED]" in str(error.value)
 

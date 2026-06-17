@@ -72,7 +72,7 @@ python -m pytest tests/test_provider_real_agent.py -q
 
 ```text
 .........                                                                [100%]
-9 passed in 25.67s
+11 passed in 33.38s
 ```
 
 单独运行真实 GLM 注册对比：
@@ -217,17 +217,28 @@ agent -> GLM provider -> tool_call:echo -> runtime.call_tool()
 - runtime 如何把 agent lifecycle 和 tool execution 串起来。
 - 业务输出相同时，生产治理证据有什么差别。
 
+## 已完成的 runtime contract
+
+`register_agent(...)` 现在使用正式 agent registry contract，包含：
+
+- `AgentMetadata`
+- `RuntimeProfile`
+- capabilities
+- lifecycle events
+- deny-path contract
+
+注册事件会把 metadata、capabilities 和 runtime profile 写入 audit。policy deny 时，注册 agent 不会回落到 direct execution。
+
 ## 风险与限制
 
-- 当前 `register_agent(...)` 是最小 runtime registration API，用于证明 agent lifecycle 和 tool governance，还不是完整 hosted agent registry。
+- 当前 `register_agent(...)` 是本地 runtime contract，不等于 hosted control plane 的持久化 agent registry。
 - 真实 provider 测试依赖网络、额度、模型可用性和 TLS 状态。
 - provider integration tests 已捕获 transient transport error 并转为 skip，避免 pytest traceback 展开 request headers。
 - 本轮只验证 GLM/Z.AI OpenAI-compatible provider，不代表 OpenAI、Anthropic、LangGraph、MCP、Codex 的真实 payload 全量兼容。
 
 ## 后续建议
 
-1. 把 `register_agent(...)` 升级为正式 agent registry contract，定义 agent metadata、capabilities、runtime profile 和 lifecycle events。
-2. 增加 registered agent deny-path 测试，证明注册 agent 在 policy deny 时无法直接落回 direct execution。
-3. 给 provider transport 增加可配置 retry/backoff，专门处理网络 EOF、429、5xx。
-4. 增加 LangGraph optional framework agent，对比 graph agent 未注册运行与注册运行的差异。
-5. 把 agent registration comparison 纳入 design partner runbook。
+1. 将 agent registry contract 接入未来 hosted control plane。
+2. 增加更多 provider/framework payload fixture。
+3. 增加更多 LangGraph graph pattern。
+4. 把 design partner 的真实运行摘要反馈回 runbook。

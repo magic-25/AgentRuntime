@@ -9,6 +9,7 @@ contrib-adapters = []
 contrib-sandbox = []
 pilot-code-ci = []
 real-agents = []
+framework-agents = ["langgraph"]
 
 [project.scripts]
 agent-runtime = "agent_runtime.cli.main:main"

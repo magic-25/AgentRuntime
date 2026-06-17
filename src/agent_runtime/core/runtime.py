@@ -10,7 +10,7 @@ from uuid import uuid4
 from agent_runtime.approval.base import ApprovalProvider, StaticApprovalProvider
 from agent_runtime.audit.jsonl import JsonlAuditSink
 from agent_runtime.audit.sqlite import SQLiteAuditSink
-from agent_runtime.core.models import ApprovalRequest, AuditEvent, ToolCall, ToolResult, utc_now
+from agent_runtime.core.models import AgentMetadata, ApprovalRequest, AuditEvent, RuntimeProfile, ToolCall, ToolResult, utc_now
 from agent_runtime.core.registry import ToolRegistry
 from agent_runtime.execution.in_process import InProcessExecutor
 from agent_runtime.execution.sandbox import SandboxCommandSpec, SandboxExecutor, SandboxUnavailableError, UnavailableSandboxExecutor
@@ -20,21 +20,37 @@ from agent_runtime.policy.engine import PolicyEngine
 
 
 class RegisteredAgent:
-    def __init__(self, runtime: "AgentRuntime", agent_id: str, agent: Any, actor: dict[str, Any], environment: str) -> None:
+    def __init__(
+        self,
+        runtime: "AgentRuntime",
+        agent_id: str,
+        agent: Any,
+        actor: dict[str, Any],
+        environment: str,
+        metadata: AgentMetadata,
+        direct_tools: dict[str, Any] | None = None,
+    ) -> None:
         self.runtime = runtime
         self.agent_id = agent_id
         self.agent = agent
         self.actor = actor
         self.environment = environment
+        self.metadata = metadata
+        self.direct_tools = direct_tools or {}
 
     def run(self, prompt: str) -> Any:
-        self.runtime._audit_agent_event("AgentRunStarted", self.agent_id, {"actor": self.actor, "environment": self.environment})
+        self.runtime._audit_agent_event(
+            "AgentRunStarted",
+            self.agent_id,
+            {"actor": self.actor, "environment": self.environment, "metadata": self.metadata.to_dict()},
+        )
         self.agent.runtime = self.runtime
         self.agent.actor = self.actor
         self.agent.environment = self.environment
         transcript = self.agent.run(prompt)
         object.__setattr__(transcript, "registration", "registered")
         object.__setattr__(transcript, "agent_id", self.agent_id)
+        object.__setattr__(transcript, "agent_metadata", self.metadata.to_dict())
         self.runtime._audit_agent_event(
             "AgentRunFinished",
             self.agent_id,
@@ -105,10 +121,56 @@ class AgentRuntime:
     def tool(self, *args: Any, **kwargs: Any) -> Any:
         return self.registry.tool(*args, **kwargs)
 
-    def register_agent(self, agent_id: str, agent: Any, actor: dict[str, Any], environment: str) -> RegisteredAgent:
+    def register_agent(
+        self,
+        agent_id: str,
+        agent: Any,
+        actor: dict[str, Any],
+        environment: str,
+        metadata: AgentMetadata | dict[str, Any] | None = None,
+        direct_tools: dict[str, Any] | None = None,
+    ) -> RegisteredAgent:
+        normalized = self._normalize_agent_metadata(agent_id, metadata, environment)
         self._audit_event_cursor = len(self._audit_event_types)
-        self._audit_agent_event("AgentRegistered", agent_id, {"actor": actor, "environment": environment})
-        return RegisteredAgent(self, agent_id, agent, actor, environment)
+        self._audit_agent_event(
+            "AgentRegistered",
+            agent_id,
+            {"actor": actor, "environment": environment, "metadata": normalized.to_dict()},
+        )
+        return RegisteredAgent(self, agent_id, agent, actor, environment, normalized, direct_tools=direct_tools)
+
+    def _normalize_agent_metadata(
+        self,
+        agent_id: str,
+        metadata: AgentMetadata | dict[str, Any] | None,
+        environment: str,
+    ) -> AgentMetadata:
+        if isinstance(metadata, AgentMetadata):
+            return metadata
+        if isinstance(metadata, dict):
+            runtime_profile = metadata.get("runtime_profile", RuntimeProfile(environment=environment))
+            if isinstance(runtime_profile, dict):
+                runtime_profile = RuntimeProfile(**runtime_profile)
+            return AgentMetadata(
+                agent_id=metadata.get("agent_id", agent_id),
+                name=metadata.get("name", agent_id),
+                provider=metadata.get("provider", "unknown"),
+                framework=metadata.get("framework", "unknown"),
+                version=metadata.get("version", ""),
+                description=metadata.get("description", ""),
+                capabilities=list(metadata.get("capabilities", [])),
+                runtime_profile=runtime_profile,
+                lifecycle_events=list(
+                    metadata.get("lifecycle_events", ["AgentRegistered", "AgentRunStarted", "AgentRunFinished"])
+                ),
+            )
+        return AgentMetadata(
+            agent_id=agent_id,
+            name=agent_id,
+            provider=getattr(metadata, "provider", "unknown"),
+            framework="unknown",
+            runtime_profile=RuntimeProfile(environment=environment),
+        )
 
     def command_tool(
         self,
