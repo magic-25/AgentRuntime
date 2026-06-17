@@ -16,8 +16,8 @@ ToolCall -> Context Filter -> Policy Engine -> Approval Gate -> Executor -> Resu
 - [用户指南：场景与概念](USER_GUIDE.md)
 - [测试报告](TEST_REPORT.md)
 - [场景测试报告](SCENARIO_TEST_REPORT.md)
-- [Real Agent 测试报告](REAL_AGENT_TEST_REPORT.md)
-- [Provider Agent Runtime 对比测试报告](PROVIDER_RUNTIME_COMPARISON_REPORT.md)
+- [Real Agent 测试报告](REAL_AGENT_TEST_REPORT.md)：测试 agent 类型、职责和用例矩阵。
+- [Provider Agent Runtime 对比测试报告](PROVIDER_RUNTIME_COMPARISON_REPORT.md)：`glm-agent` 未注册 / 注册到 runtime 的执行过程对比。
 - [开源 Agent 采用评估](OPEN_SOURCE_AGENT_EVALUATION.md)
 - [贡献指南](CONTRIBUTING.md)
 - [安全策略](SECURITY.md)

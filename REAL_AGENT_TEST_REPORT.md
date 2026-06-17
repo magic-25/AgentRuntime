@@ -51,6 +51,38 @@
 | `MCPStyleRealAgent` | 生成 MCP-style tool call，经 MCP adapter 翻译后进入 runtime | 无 |
 | `OpenAICompatibleToolCallingAgent` | 构造 OpenAI-compatible chat/completions 请求，解析 provider 返回的 `tool_calls`，再交给 runtime 执行 | 默认无；真实 GLM integration 需要 `GLM_API_KEY` 或 `ZAI_API_KEY` |
 
+## 测试 Agent 说明
+
+这些测试 agent 不是产品内置的业务 agent，也不是面向用户长期使用的 agent 模板。它们是测试夹具，用来模拟真实生产中常见的 agent 行为，并验证 Agent Runtime 是否能接住这些行为。
+
+| Agent | 模拟的真实角色 | 它会做什么 | 为什么需要它 |
+| --- | --- | --- | --- |
+| `ScriptedToolCallingAgent` | 最小工具调用 agent | 按预设步骤生成 tool call，收到 runtime result 后停止或 blocked | 验证最小 agent loop 是否必须经过 runtime，而不是直接调函数 |
+| `CodeCIRealAgent` | 代码/CI agent | 按命令计划执行测试命令，遇到未授权的 `git commit` 后停止 | 验证 Code/CI agent 不会绕过 allowlist 执行写操作 |
+| `OpsDiagnosticRealAgent` | 运维诊断 agent | 先调用只读状态检查，再尝试未知写操作 | 验证只读诊断和危险操作能在同一 agent run 中被区分 |
+| `MCPStyleRealAgent` | MCP tool-calling agent | 生成 MCP-style payload，经 MCP adapter 翻译后进入 runtime | 验证 MCP adapter 只翻译、不授权、不执行 |
+| `OpenAICompatibleToolCallingAgent` | 真实 provider tool-calling agent | 向 GLM/Z.AI 或 fake OpenAI-compatible transport 发起 chat/completions 请求，解析 `tool_calls`，再决定走 runtime 或 direct tool | 验证真实 LLM provider 产生的 tool call 是否能被 runtime 治理 |
+
+### `OpenAICompatibleToolCallingAgent` 的具体行为
+
+这个 agent 是当前最接近真实生产 agent 的测试对象。它有两种运行方式：
+
+- **未注册模式**：agent 请求 GLM provider，解析 provider 返回的 `tool_calls`，然后直接调用本地工具函数，例如 `direct_echo()`。
+- **注册模式**：agent 先通过 `runtime.register_agent("glm-agent", agent, ...)` 注册，然后仍然请求 GLM provider，但工具调用必须进入 `runtime.call_tool()`。
+
+它不会把 API key 写进 audit、报告或可提交文件。真实 provider 测试只从 shell 环境或 ignored `.env` 读取 key。
+
+### 为什么测试 agent 不做复杂业务
+
+本轮测试故意选择 `echo`、Code/CI command、ops status 这类小工具，不是因为真实业务简单，而是为了把验证焦点放在 runtime 边界上：
+
+- agent 是否真的产生 tool call。
+- tool call 是否进入 runtime。
+- policy 是否能 allow/deny。
+- audit 是否能记录 agent lifecycle 和 tool lifecycle。
+- provider key 是否不会泄漏。
+- 未注册 agent 和注册 agent 的执行过程是否可区分。
+
 ## 用例矩阵
 
 | ID | 用例 | 测试函数 | 关键验证 | 状态 |

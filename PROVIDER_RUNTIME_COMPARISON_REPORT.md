@@ -26,6 +26,42 @@
 | provider | GLM/Z.AI OpenAI-compatible chat/completions |
 | API key | 从 ignored `.env` 或 shell 环境变量读取 |
 
+## 测试 Agent 是什么
+
+本报告里的测试 agent 叫 `glm-agent`，实现类是 `OpenAICompatibleToolCallingAgent`。它模拟的是一个使用真实 LLM provider 的工具调用 agent，而不是 Agent Runtime 自己内置的业务 agent。
+
+### `glm-agent` 的职责
+
+`glm-agent` 做四件事：
+
+1. 向 GLM/Z.AI OpenAI-compatible chat/completions endpoint 发送 prompt 和 tool schema。
+2. 等待 provider 返回 `tool_calls`。
+3. 解析 tool name 和 tool arguments。
+4. 根据运行模式选择执行路径：
+   - 未注册时：直接调用传入的本地工具函数。
+   - 注册后：把 tool call 交给 `runtime.call_tool()`。
+
+### `glm-agent` 不负责什么
+
+`glm-agent` 不负责生产治理：
+
+- 不自己做统一 policy。
+- 不自己写 runtime audit。
+- 不自己生成 runtime run id。
+- 不自己维护 agent lifecycle。
+- 不自己承担 sandbox / approval / audit sink 的职责。
+
+这些能力是 Agent Runtime 在注册后提供的。
+
+### 为什么用 `echo` 工具
+
+`echo` 工具不是业务重点，它只是一个低风险、可重复、可断言的工具。它让测试能专注比较两件事：
+
+- 同一个 agent 自己跑时，执行链路是什么样。
+- 同一个 agent 注册进 runtime 后，执行链路多了哪些生产治理证据。
+
+如果换成真实 CRM、CI、运维或文件系统工具，核心差异仍然一样：未注册 agent 是自己执行，注册 agent 的工具调用进入 runtime。
+
 ## 执行命令
 
 ```bash
