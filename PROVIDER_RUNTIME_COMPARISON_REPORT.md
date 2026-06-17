@@ -1,27 +1,28 @@
-# Provider Agent Runtime 对比测试报告
+# Provider Agent 注册对比测试报告
 
 报告日期：2026-06-17  
 报告状态：公开测试报告  
-测试对象：GLM/Z.AI OpenAI-compatible provider agent  
+测试对象：同一个 GLM/Z.AI OpenAI-compatible provider agent  
 密钥来源：ignored `.env` 或 shell 环境变量，不提交 secret
 
 ## 结论摘要
 
-本轮对比测试验证了同一个真实 provider tool call 在三种路径下的差异：
+本轮对比测试验证的是同一个 agent 的两种运行方式：
 
-1. **使用 Agent Runtime，policy allow**：工具执行成功，并产生 run id、policy decision、audit event 和统一 `ToolResult`。
-2. **使用 Agent Runtime，policy deny**：同一个 provider tool call 被 runtime 拒绝，工具不执行，并产生 deny audit。
-3. **不使用 Agent Runtime，裸函数直连**：工具能返回结果，但没有 policy、audit、run id、统一状态、adapter source 或拒绝能力。
+1. **未注册到 Agent Runtime**：agent 自己请求 GLM provider，自己解析 tool call，然后直接调用本地工具函数。
+2. **注册到 Agent Runtime**：同一个 agent 先通过 `runtime.register_agent(...)` 注册，然后由 registered runner 执行；agent 仍然请求 GLM provider，但工具调用必须进入 Agent Runtime。
 
-核心结论：Agent Runtime 的价值不是“让 tool call 能跑”，而是让真实 provider agent 的 tool call 进入可治理、可拒绝、可审计、可追踪的生产链路。
+核心结论：未注册 agent 可以完成业务输出，但执行过程不进入统一治理链路。注册 agent 的业务输出相同，但多了 agent registration、agent run lifecycle、policy、audit、run id 和统一 `ToolResult`。
 
 ## 测试文件
 
 | 项目 | 值 |
 | --- | --- |
 | 测试文件 | `tests/test_provider_real_agent.py` |
-| 对比测试 | `test_glm_provider_tool_call_comparison_with_and_without_runtime` |
+| fake provider 注册对比 | `test_same_agent_registration_comparison_with_fake_provider` |
+| 真实 GLM 注册对比 | `test_same_agent_unregistered_vs_registered_runtime_execution` |
 | provider agent | `OpenAICompatibleToolCallingAgent` |
+| runtime API | `AgentRuntime.register_agent(...)` |
 | provider | GLM/Z.AI OpenAI-compatible chat/completions |
 | API key | 从 ignored `.env` 或 shell 环境变量读取 |
 
@@ -34,21 +35,21 @@ python -m pytest tests/test_provider_real_agent.py -q
 输出：
 
 ```text
-.......                                                                  [100%]
-7 passed in 15.04s
+.........                                                                [100%]
+9 passed in 25.67s
 ```
 
-单独运行对比测试：
+单独运行真实 GLM 注册对比：
 
 ```bash
-python -m pytest tests/test_provider_real_agent.py::test_glm_provider_tool_call_comparison_with_and_without_runtime -q
+python -m pytest tests/test_provider_real_agent.py::test_same_agent_unregistered_vs_registered_runtime_execution -q
 ```
 
 输出：
 
 ```text
 .                                                                        [100%]
-1 passed in 6.79s
+1 passed in 20.01s
 ```
 
 ## 对比摘要
@@ -57,114 +58,140 @@ python -m pytest tests/test_provider_real_agent.py::test_glm_provider_tool_call_
 
 ```json
 {
-  "provider": "glm",
-  "tool_call": {
-    "name": "echo",
-    "arguments": {
-      "message": "runtime comparison"
-    }
+  "same_agent": "glm-agent",
+  "unregistered_agent_run": {
+    "registration": "unregistered",
+    "status": "completed",
+    "decisions": [
+      "request:glm",
+      "tool_call:echo",
+      "direct:success",
+      "stop"
+    ],
+    "tool_result": {
+      "status": "success",
+      "run_id": null,
+      "output": {
+        "message": "agent registration comparison"
+      }
+    },
+    "audit_events": []
   },
-  "with_runtime_allow": {
-    "status": "success",
-    "has_run_id": true,
-    "output": {
-      "message": "runtime comparison"
+  "registered_agent_run": {
+    "registration": "registered",
+    "agent_id": "glm-agent",
+    "status": "completed",
+    "decisions": [
+      "request:glm",
+      "tool_call:echo",
+      "runtime:success",
+      "stop"
+    ],
+    "tool_result": {
+      "status": "success",
+      "run_id_present": true,
+      "output": {
+        "message": "agent registration comparison"
+      }
     },
     "audit_events": [
+      "AgentRegistered",
+      "AgentRunStarted",
       "ToolCallRequested",
       "PolicyEvaluated",
       "ToolExecutionStarted",
-      "ToolExecutionFinished"
+      "ToolExecutionFinished",
+      "AgentRunFinished"
     ]
-  },
-  "with_runtime_deny": {
-    "status": "denied",
-    "error": "default_decision",
-    "output": null,
-    "audit_events": [
-      "ToolCallRequested",
-      "PolicyEvaluated",
-      "RuntimeError"
-    ]
-  },
-  "without_runtime_direct": {
-    "status_envelope": null,
-    "policy_decision": null,
-    "audit_events": [],
-    "output": {
-      "message": "runtime comparison"
-    }
   }
 }
 ```
 
-## 详细对比
+## 执行过程对比
 
-| 维度 | 使用 Agent Runtime | 不使用 Agent Runtime |
+| 阶段 | 未注册 agent | 注册到 Agent Runtime 的 agent |
 | --- | --- | --- |
-| provider tool call | 支持，先解析真实 `tool_calls` | 支持，需要业务代码自己解析 |
-| 执行入口 | `runtime.call_tool()` | 本地函数直接调用 |
-| policy | 有，allow/deny 可配置 | 无，除非每个 agent 自己实现 |
-| deny 行为 | `status=denied`，工具不执行 | 默认仍会执行 |
-| audit | 有 `ToolCallRequested`、`PolicyEvaluated`、execution/error events | 无 |
-| run id | 有 | 无 |
-| result envelope | `ToolResult(status, output, error, run_id)` | 普通函数返回值 |
-| adapter/provider source | 可记录 `adapter_source=glm` | 无统一位置 |
-| 生产排障 | 可根据 audit 和 run id 复盘 | 只能靠应用自己打日志 |
-| 安全边界 | provider 只产生意图，runtime 决定能否执行 | provider output 和业务执行更容易耦合 |
+| agent identity | 业务代码自己约定 | runtime 记录 `agent_id=glm-agent` |
+| agent lifecycle | 无统一 lifecycle | `AgentRegistered`、`AgentRunStarted`、`AgentRunFinished` |
+| provider request | agent 直接请求 GLM | 同一个 agent 直接请求 GLM |
+| tool call parsing | agent 自己解析 | 同一个 agent 自己解析 |
+| tool execution | agent 直接调用本地函数 | agent 调用进入 `runtime.call_tool()` |
+| policy | 无统一 policy | `PolicyEvaluated` |
+| audit | 无统一 audit | agent lifecycle + tool call audit |
+| result | 本地函数返回值包装成 direct result | runtime 返回 `ToolResult` |
+| run id | 无 | 有 |
+| deny 能力 | 需要 agent 自己实现 | runtime policy 可拒绝 |
 
 ## 测试解释
 
-### Runtime Allow
+### 未注册 Agent
 
-同一个 GLM provider tool call 进入 runtime，policy 允许 `echo` 工具执行。
+同一个 `glm-agent` 不注册到 runtime。执行过程是：
 
-结果：
-
-- `status=success`
-- 有 `run_id`
-- 输出和裸函数一致
-- audit 包含请求、策略评估、执行开始、执行完成
-
-这说明 runtime 不改变正常业务输出，同时增加生产治理证据。
-
-### Runtime Deny
-
-同一个 GLM provider tool call 进入没有 allow rule 的 runtime。
+```text
+agent -> GLM provider -> tool_call:echo -> direct_echo()
+```
 
 结果：
 
-- `status=denied`
-- `error=default_decision`
-- `output=null`
-- audit 包含请求、策略评估、运行错误
+- `registration=unregistered`
+- `status=completed`
+- decisions 为 `request:glm -> tool_call:echo -> direct:success -> stop`
+- tool result 没有 `run_id`
+- `audit_events=[]`
 
-这说明即使真实 provider 产生了工具调用，最终是否执行仍由 runtime policy 决定。
+这说明 agent 自己运行时可以完成业务输出，但生产系统看不到统一的 agent lifecycle、policy 和 audit 证据。
 
-### Without Runtime
+### 注册到 Agent Runtime
 
-直接把 provider arguments 传给本地 `direct_echo()`。
+同一个 `glm-agent` 通过 `runtime.register_agent(...)` 注册。执行过程是：
+
+```text
+runtime.register_agent(glm-agent)
+registered_agent.run()
+agent -> GLM provider -> tool_call:echo -> runtime.call_tool()
+```
 
 结果：
 
-- 输出成功
-- 没有 run id
-- 没有 policy decision
-- 没有 audit events
-- 没有统一 error/status envelope
+- `registration=registered`
+- `agent_id=glm-agent`
+- `status=completed`
+- decisions 为 `request:glm -> tool_call:echo -> runtime:success -> stop`
+- tool result 有 `run_id`
+- audit events 包含：
+  - `AgentRegistered`
+  - `AgentRunStarted`
+  - `ToolCallRequested`
+  - `PolicyEvaluated`
+  - `ToolExecutionStarted`
+  - `ToolExecutionFinished`
+  - `AgentRunFinished`
 
-这说明“不使用 runtime”更简单，但缺少生产环境最需要的治理和审计能力。
+这说明注册 agent 后，provider 仍然负责生成 tool call，但执行权、审计和治理边界进入 runtime。
+
+## 为什么这比 tool-call 级对比更准确
+
+之前的对比是“同一个 tool call 走 runtime / 不走 runtime”。这能证明 policy 和 audit，但不够贴近真实使用方式。
+
+这次对比是“同一个 agent 整体执行是否注册到 runtime”。它更准确地回答：
+
+- agent 自己跑时发生了什么。
+- agent 注册后 runtime 能看到什么。
+- runtime 如何把 agent lifecycle 和 tool execution 串起来。
+- 业务输出相同时，生产治理证据有什么差别。
 
 ## 风险与限制
 
-- 真实 provider 测试依赖网络、额度、模型可用性和 TLS 状态；本轮脱敏摘要脚本第一次遇到一次 TLS EOF，重试后成功。
+- 当前 `register_agent(...)` 是最小 runtime registration API，用于证明 agent lifecycle 和 tool governance，还不是完整 hosted agent registry。
+- 真实 provider 测试依赖网络、额度、模型可用性和 TLS 状态。
 - provider integration tests 已捕获 transient transport error 并转为 skip，避免 pytest traceback 展开 request headers。
 - 本轮只验证 GLM/Z.AI OpenAI-compatible provider，不代表 OpenAI、Anthropic、LangGraph、MCP、Codex 的真实 payload 全量兼容。
-- 裸函数直连对比是最小复现，不代表所有应用都会完全没有日志；它表达的是“不使用统一 runtime 时，需要每个 agent 自己重复实现治理能力”。
 
 ## 后续建议
 
-1. 给 provider transport 增加可配置 retry/backoff，专门处理网络 EOF、429、5xx。
-2. 收集匿名 provider payload fixture，把真实外部调用和可重复 replay 分开。
-3. 增加 LangGraph optional framework agent，对比 framework graph 进入 runtime 与 framework 自执行 tool 的差异。
-4. 把 provider/runtime 对比测试纳入 design partner runbook。
+1. 把 `register_agent(...)` 升级为正式 agent registry contract，定义 agent metadata、capabilities、runtime profile 和 lifecycle events。
+2. 增加 registered agent deny-path 测试，证明注册 agent 在 policy deny 时无法直接落回 direct execution。
+3. 给 provider transport 增加可配置 retry/backoff，专门处理网络 EOF、429、5xx。
+4. 增加 LangGraph optional framework agent，对比 graph agent 未注册运行与注册运行的差异。
+5. 把 agent registration comparison 纳入 design partner runbook。

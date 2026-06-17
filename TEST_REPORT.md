@@ -84,14 +84,14 @@ python -m pytest -q > .agent-runtime/test-report-2026-06-17/pytest.txt
 
 ```text
 ........................................................................ [ 45%]
-........................................................................ [ 91%]
-..............                                                           [100%]
-158 passed in 15.49s
+........................................................................ [ 90%]
+................                                                         [100%]
+160 passed in 31.67s
 ```
 
 **输出解释**
 
-`158 passed` 表示当前测试套件全部通过，且真实 GLM provider integration 与 runtime/direct 对比测试都已使用 ignored `.env` 中的本地 API key 执行。覆盖范围包括 adapter、audit、policy、sandbox、platform、release manifest、Code/CI pilot、staging pilot、SQLite audit、tracing、11 个基于用户指南场景的 acceptance tests、4 个自写 real-agent loop tests，以及 7 个 provider-agent tests。
+`160 passed` 表示当前测试套件全部通过，且真实 GLM provider integration 与 agent registration 对比测试都已使用 ignored `.env` 中的本地 API key 执行。覆盖范围包括 adapter、audit、policy、sandbox、platform、release manifest、Code/CI pilot、staging pilot、SQLite audit、tracing、11 个基于用户指南场景的 acceptance tests、4 个自写 real-agent loop tests，以及 9 个 provider-agent tests。
 
 **结论**
 
@@ -584,9 +584,9 @@ Real-agent loop 测试单独维护在 [REAL_AGENT_TEST_REPORT.md](REAL_AGENT_TES
 
 ### TC-015 GLM/OpenAI-Compatible Provider Agent
 
-GLM/OpenAI-compatible provider agent 测试单独维护在 [REAL_AGENT_TEST_REPORT.md](REAL_AGENT_TEST_REPORT.md)，runtime/direct 对比测试详见 [PROVIDER_RUNTIME_COMPARISON_REPORT.md](PROVIDER_RUNTIME_COMPARISON_REPORT.md)。综合测试报告只记录它作为回归套件的一部分被纳入 `python -m pytest`，并在 REQ-012 中保留追踪关系。
+GLM/OpenAI-compatible provider agent 测试单独维护在 [REAL_AGENT_TEST_REPORT.md](REAL_AGENT_TEST_REPORT.md)，agent registration 对比测试详见 [PROVIDER_RUNTIME_COMPARISON_REPORT.md](PROVIDER_RUNTIME_COMPARISON_REPORT.md)。综合测试报告只记录它作为回归套件的一部分被纳入 `python -m pytest`，并在 REQ-012 中保留追踪关系。
 
-回归中，fake transport 覆盖真实 provider 的 `tool_calls` response shape，验证 agent 会解析 tool name 和 arguments 后交给 runtime。真实 GLM/Z.AI 外部调用由 `tests/test_provider_real_agent.py::test_glm_provider_agent_can_call_real_provider_when_key_is_configured` 覆盖；runtime/direct 对比由 `test_glm_provider_tool_call_comparison_with_and_without_runtime` 覆盖。二者只有在 shell 环境或 ignored `.env` 设置 `GLM_API_KEY` 或 `ZAI_API_KEY` 时运行。
+回归中，fake transport 覆盖真实 provider 的 `tool_calls` response shape，验证 agent 会解析 tool name 和 arguments 后交给 runtime。真实 GLM/Z.AI 外部调用由 `tests/test_provider_real_agent.py::test_glm_provider_agent_can_call_real_provider_when_key_is_configured` 覆盖；未注册 agent vs 注册 agent 对比由 `test_same_agent_registration_comparison_with_fake_provider` 和 `test_same_agent_unregistered_vs_registered_runtime_execution` 覆盖。
 
 ## 回归范围说明
 
@@ -607,7 +607,7 @@ GLM/OpenAI-compatible provider agent 测试单独维护在 [REAL_AGENT_TEST_REPO
 - production pilot report。
 - sandbox abuse、conformance、hardening、runtime evidence、sidecar、support matrix。
 - scenario-based user guide acceptance。
-- provider-agent tool-call parsing、GLM optional integration、runtime/direct execution comparison 和 secret boundary。
+- provider-agent tool-call parsing、GLM optional integration、agent registration comparison 和 secret boundary。
 - SQLite audit。
 - tracing。
 

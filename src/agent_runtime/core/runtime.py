@@ -19,6 +19,31 @@ from agent_runtime.guard.redaction import redact_secrets
 from agent_runtime.policy.engine import PolicyEngine
 
 
+class RegisteredAgent:
+    def __init__(self, runtime: "AgentRuntime", agent_id: str, agent: Any, actor: dict[str, Any], environment: str) -> None:
+        self.runtime = runtime
+        self.agent_id = agent_id
+        self.agent = agent
+        self.actor = actor
+        self.environment = environment
+
+    def run(self, prompt: str) -> Any:
+        self.runtime._audit_agent_event("AgentRunStarted", self.agent_id, {"actor": self.actor, "environment": self.environment})
+        self.agent.runtime = self.runtime
+        self.agent.actor = self.actor
+        self.agent.environment = self.environment
+        transcript = self.agent.run(prompt)
+        object.__setattr__(transcript, "registration", "registered")
+        object.__setattr__(transcript, "agent_id", self.agent_id)
+        self.runtime._audit_agent_event(
+            "AgentRunFinished",
+            self.agent_id,
+            {"status": transcript.status, "tool_count": len(transcript.tool_results)},
+        )
+        object.__setattr__(transcript, "audit_events", self.runtime._audit_event_types_since_last_read())
+        return transcript
+
+
 class AgentRuntime:
     def __init__(
         self,
@@ -39,6 +64,8 @@ class AgentRuntime:
         self.executor = InProcessExecutor()
         self.subprocess_executor = SubprocessExecutor()
         self.sandbox_executor = sandbox_executor or UnavailableSandboxExecutor()
+        self._audit_event_types: list[str] = []
+        self._audit_event_cursor = 0
 
     @classmethod
     def from_dict(
@@ -77,6 +104,11 @@ class AgentRuntime:
 
     def tool(self, *args: Any, **kwargs: Any) -> Any:
         return self.registry.tool(*args, **kwargs)
+
+    def register_agent(self, agent_id: str, agent: Any, actor: dict[str, Any], environment: str) -> RegisteredAgent:
+        self._audit_event_cursor = len(self._audit_event_types)
+        self._audit_agent_event("AgentRegistered", agent_id, {"actor": actor, "environment": environment})
+        return RegisteredAgent(self, agent_id, agent, actor, environment)
 
     def command_tool(
         self,
@@ -410,11 +442,30 @@ class AgentRuntime:
                     payload=payload,
                 )
             )
+            self._audit_event_types.append(event_type)
             return True
         except Exception:
             fail_closed = self._audit_failure_strategy(environment or call.environment) == "fail_closed"
             self._observe_audit_failure(fail_closed)
             return not fail_closed
+
+    def _audit_agent_event(self, event_type: str, agent_id: str, payload: dict[str, Any]) -> bool:
+        try:
+            self.audit_sink.write(
+                AuditEvent(
+                    event_type=event_type,
+                    run_id=f"agent_{agent_id}",
+                    payload=self._redact({"agent_id": agent_id, **payload}),
+                )
+            )
+            self._audit_event_types.append(event_type)
+            return True
+        except Exception:
+            self._observe_audit_failure(fail_closed=False)
+            return True
+
+    def _audit_event_types_since_last_read(self) -> list[str]:
+        return self._audit_event_types[self._audit_event_cursor :]
 
     def _audit_failure_strategy(self, environment: str) -> str:
         return (

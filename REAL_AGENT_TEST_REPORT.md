@@ -31,14 +31,14 @@
 | 测试文件 | `tests/test_real_agent_scenarios.py`，`tests/test_provider_real_agent.py` |
 | 默认执行命令 | `python -m pytest tests/test_real_agent_scenarios.py tests/test_provider_real_agent.py -q` |
 | 真实 GLM provider 命令 | 设置 `GLM_API_KEY` 或 `ZAI_API_KEY` 后运行 `python -m pytest tests/test_provider_real_agent.py::test_glm_provider_agent_can_call_real_provider_when_key_is_configured -q` |
-| 本地 `.env` 用例数量 | 11 passed |
+| 本地 `.env` 用例数量 | 13 passed |
 | 结果 | 默认无 key 时真实 provider 测试跳过；本地 `.env` 有 key 时真实 provider 测试通过 |
 
 ## 测试输出
 
 ```text
-...........                                                              [100%]
-11 passed in 18.53s
+.............                                                            [100%]
+13 passed in 25.61s
 ```
 
 ## Agent 类型
@@ -65,7 +65,8 @@
 | RAG-008 | Ignored `.env` loading | `test_glm_provider_agent_factory_reads_ignored_dotenv_file` | factory 可读取 ignored `.env`，不要求把 key export 到 shell | verified |
 | RAG-009 | Provider error redaction | `test_openai_compatible_transport_redacts_api_key_from_provider_errors` | provider HTTP error detail 中如果出现 API key，异常消息会替换成 `[REDACTED]` | verified |
 | RAG-010 | Real GLM provider integration | `test_glm_provider_agent_can_call_real_provider_when_key_is_configured` | 设置 `GLM_API_KEY` 或 `ZAI_API_KEY` 后，请真实 provider 产生 tool call 并进入 runtime | optional |
-| RAG-011 | Runtime vs direct execution comparison | `test_glm_provider_tool_call_comparison_with_and_without_runtime` | 同一个真实 provider tool call 对比 runtime allow、runtime deny、裸函数直连 | verified with local `.env` |
+| RAG-011 | Fake provider agent registration comparison | `test_same_agent_registration_comparison_with_fake_provider` | 同一个 agent 未注册时直连工具，注册后进入 runtime lifecycle/audit | verified |
+| RAG-012 | Real GLM agent registration comparison | `test_same_agent_unregistered_vs_registered_runtime_execution` | 同一个真实 GLM agent 未注册运行 vs 注册到 Agent Runtime 后运行 | verified with local `.env` |
 
 ## 用例详情
 
@@ -300,25 +301,47 @@ export GLM_MODEL="glm-5.2"
 
 默认跳过；具备 key 时可执行。
 
-### RAG-011 Runtime vs Direct Execution Comparison
+### RAG-011 Fake Provider Agent Registration Comparison
 
 **用例设计**
 
-使用真实 GLM provider 产生一次 `echo` tool call，然后把同一个 tool name 和 arguments 分别送入三条路径：
+使用 fake OpenAI-compatible provider response，构造同一个 `OpenAICompatibleToolCallingAgent`，分别执行：
 
-- runtime allow：有 allow rule 的 Agent Runtime。
-- runtime deny：没有 allow rule 的 Agent Runtime。
-- direct execution：不使用 runtime，直接调用本地函数。
+- 未注册：agent 直接调用本地 `direct_echo()`。
+- 已注册：`runtime.register_agent("glm-agent", agent, ...)` 后由 registered runner 执行。
 
 **输出结果**
 
-- runtime allow：`status=success`，有 `run_id`，audit 包含 `ToolCallRequested`、`PolicyEvaluated`、`ToolExecutionStarted`、`ToolExecutionFinished`。
-- runtime deny：`status=denied`，`error=default_decision`，audit 包含 `ToolCallRequested`、`PolicyEvaluated`、`RuntimeError`。
-- direct execution：返回 `{"message": "runtime comparison"}`，没有 policy decision、没有 audit、没有 run id、没有统一 status envelope。
+- unregistered：`registration=unregistered`，decisions 为 `request:glm -> tool_call:echo -> direct:success -> stop`，没有 `run_id`，没有 audit events。
+- registered：`registration=registered`，`agent_id=glm-agent`，decisions 为 `request:glm -> tool_call:echo -> runtime:success -> stop`，有 `run_id`，audit events 包含 `AgentRegistered`、`AgentRunStarted`、`ToolCallRequested`、`PolicyEvaluated`、`ToolExecutionStarted`、`ToolExecutionFinished`、`AgentRunFinished`。
 
 **输出解释**
 
-这证明 Agent Runtime 的生产价值不是替代 provider 产生 tool call，而是在真实 provider tool call 进入工具执行前加上统一 policy、audit、deny 和 result envelope。不使用 runtime 时也可以得到业务输出，但无法统一治理和复盘。
+这证明即使不调用真实 provider，默认测试也能验证“同一个 agent 未注册 vs 注册”的核心 runtime 语义。
+
+详细报告见 [PROVIDER_RUNTIME_COMPARISON_REPORT.md](PROVIDER_RUNTIME_COMPARISON_REPORT.md)。
+
+**结论**
+
+通过。
+
+### RAG-012 Real GLM Agent Registration Comparison
+
+**用例设计**
+
+使用真实 GLM provider。构造同一个 `glm-agent`，分别执行：
+
+- 未注册：agent 请求 GLM，解析 tool call，然后直接调用本地函数。
+- 已注册：同一个 agent 通过 `runtime.register_agent(...)` 注册，之后由 registered runner 执行，tool call 进入 `runtime.call_tool()`。
+
+**输出结果**
+
+- unregistered：业务输出成功，但 `run_id=null`，`audit_events=[]`。
+- registered：业务输出成功，`run_id` 存在，audit events 包含 agent lifecycle 和 tool execution lifecycle。
+
+**输出解释**
+
+这比单独比较 tool call 更贴近真实生产使用方式：对比对象是同一个 agent 的完整执行过程，而不是单个 tool call。
 
 详细报告见 [PROVIDER_RUNTIME_COMPARISON_REPORT.md](PROVIDER_RUNTIME_COMPARISON_REPORT.md)。
 

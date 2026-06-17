@@ -31,9 +31,12 @@ class ProviderToolCallingTranscript:
     provider: str
     model: str
     decisions: list[str]
+    registration: str = "runtime"
+    agent_id: str | None = None
     raw_tool_name: str | None = None
     raw_arguments: dict[str, Any] = field(default_factory=dict)
     tool_results: list[ToolResult] = field(default_factory=list)
+    audit_events: list[str] = field(default_factory=list)
     error: str | None = None
 
 
@@ -68,7 +71,7 @@ class OpenAICompatibleChatCompletionTransport:
 class OpenAICompatibleToolCallingAgent:
     def __init__(
         self,
-        runtime: AgentRuntime,
+        runtime: AgentRuntime | None,
         transport: ChatCompletionTransport,
         provider: str,
         model: str,
@@ -92,11 +95,14 @@ class OpenAICompatibleToolCallingAgent:
                 provider=self.provider,
                 model=self.model,
                 decisions=decisions,
+                registration="registered" if self.runtime is not None else "unregistered",
                 error="provider.no_tool_call",
             )
 
         tool_name, arguments = tool_call
         decisions.append(f"tool_call:{tool_name}")
+        if self.runtime is None:
+            raise ProviderAgentError("runtime.required")
         result = self.runtime.call_tool(
             tool_name,
             arguments,
@@ -110,11 +116,49 @@ class OpenAICompatibleToolCallingAgent:
             status="completed" if result.status == "success" else "blocked",
             provider=self.provider,
             model=self.model,
+            registration="registered",
             raw_tool_name=tool_name,
             raw_arguments=arguments,
             tool_results=[result],
             decisions=decisions,
             error=result.error,
+        )
+
+    def run_unregistered(self, prompt: str, direct_tools: dict[str, Any]) -> ProviderToolCallingTranscript:
+        decisions = [f"request:{self.provider}"]
+        tool_name, arguments = self.request_tool_call(prompt)
+        decisions.append(f"tool_call:{tool_name}")
+        if tool_name not in direct_tools:
+            decisions.append("blocked:tool.missing")
+            return ProviderToolCallingTranscript(
+                status="blocked",
+                provider=self.provider,
+                model=self.model,
+                registration="unregistered",
+                decisions=decisions,
+                raw_tool_name=tool_name,
+                raw_arguments=arguments,
+                error="tool.missing",
+            )
+        output = direct_tools[tool_name](**arguments)
+        decisions.extend(["direct:success", "stop"])
+        return ProviderToolCallingTranscript(
+            status="completed",
+            provider=self.provider,
+            model=self.model,
+            registration="unregistered",
+            decisions=decisions,
+            raw_tool_name=tool_name,
+            raw_arguments=arguments,
+            tool_results=[
+                ToolResult(
+                    tool_call_id="direct",
+                    output=output,
+                    status="success",
+                    run_id=None,
+                )
+            ],
+            audit_events=[],
         )
 
     def request_tool_call(self, prompt: str) -> tuple[str, dict[str, Any]]:
@@ -175,7 +219,7 @@ class OpenAICompatibleToolCallingAgent:
 
 
 def create_glm_tool_calling_agent_from_env(
-    runtime: AgentRuntime,
+    runtime: AgentRuntime | None,
     actor: dict[str, Any],
     environment: str,
     env_path: str | Path | None = ".env",

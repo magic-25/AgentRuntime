@@ -51,6 +51,7 @@ ToolCall -> Context Filter -> Policy Engine -> Approval Gate -> Executor -> Resu
 - sandbox conformance 和 Docker runtime evidence。
 - Code/CI reference pilot。
 - GLM/OpenAI-compatible provider agent optional integration test。
+- agent registration lifecycle comparison test。
 
 ### Platform-Ready Contracts
 

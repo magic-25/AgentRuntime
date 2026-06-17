@@ -176,6 +176,60 @@ def test_openai_compatible_transport_redacts_api_key_from_provider_errors(monkey
     assert "[REDACTED]" in str(error.value)
 
 
+def test_same_agent_registration_comparison_with_fake_provider(tmp_path):
+    response = {
+        "choices": [
+            {
+                "message": {
+                    "tool_calls": [
+                        {
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {
+                                "name": "echo",
+                                "arguments": json.dumps({"message": "fake registration comparison"}),
+                            },
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+    agent = OpenAICompatibleToolCallingAgent(
+        runtime=None,
+        transport=FakeOpenAICompatibleTransport(response),
+        provider="glm",
+        model="glm-5.2",
+        actor={"id": "glm-agent"},
+        environment="dev",
+    )
+
+    def direct_echo(message: str) -> dict[str, str]:
+        return {"message": message}
+
+    unregistered = agent.run_unregistered("Call echo.", direct_tools={"echo": direct_echo})
+    runtime = _runtime(tmp_path, allow_echo=True, audit_name="registered-agent-audit.jsonl")
+    registered = runtime.register_agent("glm-agent", agent, actor={"id": "glm-agent"}, environment="dev").run("Call echo.")
+
+    assert unregistered.registration == "unregistered"
+    assert unregistered.tool_results[0].run_id is None
+    assert unregistered.audit_events == []
+    assert unregistered.decisions == ["request:glm", "tool_call:echo", "direct:success", "stop"]
+
+    assert registered.registration == "registered"
+    assert registered.agent_id == "glm-agent"
+    assert registered.tool_results[0].run_id is not None
+    assert registered.audit_events == [
+        "AgentRegistered",
+        "AgentRunStarted",
+        "ToolCallRequested",
+        "PolicyEvaluated",
+        "ToolExecutionStarted",
+        "ToolExecutionFinished",
+        "AgentRunFinished",
+    ]
+
+
 def _skip_transient_provider_error(error: ProviderAgentError):
     if str(error).startswith("provider.request_failed:"):
         pytest.skip(f"Transient provider transport failure: {error}")
@@ -258,3 +312,62 @@ def test_glm_provider_tool_call_comparison_with_and_without_runtime(tmp_path):
     assert "ToolCallRequested" in deny_audit
     assert "PolicyEvaluated" in deny_audit
     assert "RuntimeError" in deny_audit
+
+
+@pytest.mark.integration
+def test_same_agent_unregistered_vs_registered_runtime_execution(tmp_path):
+    try:
+        unmanaged_agent = create_glm_tool_calling_agent_from_env(
+            runtime=None,
+            actor={"id": "glm-agent"},
+            environment="dev",
+        )
+    except ProviderAgentError:
+        pytest.skip("Set GLM_API_KEY or ZAI_API_KEY in shell env or ignored .env to run the agent registration comparison test")
+
+    def direct_echo(message: str) -> dict[str, str]:
+        return {"message": message}
+
+    try:
+        unregistered = unmanaged_agent.run_unregistered(
+            "Call the echo tool exactly once with message 'agent registration comparison'.",
+            direct_tools={"echo": direct_echo},
+        )
+    except ProviderAgentError as error:
+        _skip_transient_provider_error(error)
+
+    runtime = _runtime(tmp_path, allow_echo=True, audit_name="registered-agent-audit.jsonl")
+    registered_agent = runtime.register_agent(
+        "glm-agent",
+        unmanaged_agent,
+        actor={"id": "glm-agent"},
+        environment="dev",
+    )
+
+    try:
+        registered = registered_agent.run("Call the echo tool exactly once with message 'agent registration comparison'.")
+    except ProviderAgentError as error:
+        _skip_transient_provider_error(error)
+
+    assert unregistered.status == "completed"
+    assert unregistered.registration == "unregistered"
+    assert unregistered.tool_results[0].output == {"message": "agent registration comparison"}
+    assert unregistered.tool_results[0].run_id is None
+    assert unregistered.audit_events == []
+    assert unregistered.decisions == ["request:glm", "tool_call:echo", "direct:success", "stop"]
+
+    assert registered.status == "completed"
+    assert registered.registration == "registered"
+    assert registered.agent_id == "glm-agent"
+    assert registered.tool_results[0].output == {"message": "agent registration comparison"}
+    assert registered.tool_results[0].run_id is not None
+    assert registered.decisions == ["request:glm", "tool_call:echo", "runtime:success", "stop"]
+    assert registered.audit_events == [
+        "AgentRegistered",
+        "AgentRunStarted",
+        "ToolCallRequested",
+        "PolicyEvaluated",
+        "ToolExecutionStarted",
+        "ToolExecutionFinished",
+        "AgentRunFinished",
+    ]
