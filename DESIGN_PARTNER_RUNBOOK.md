@@ -9,6 +9,7 @@
 
 - agent 是否能注册进 runtime。
 - runtime 是否记录 agent lifecycle。
+- runtime 是否能把 agent run 和 tool call 串成同一条 trace。
 - policy deny 是否阻止工具执行。
 - audit 是否能复盘 agent run。
 - provider 网络波动是否被 retry/backoff 处理。
@@ -38,7 +39,22 @@ python -m pytest tests/test_provider_real_agent.py::test_same_agent_unregistered
 - 注册 agent 产生 `AgentRegistered`、`AgentRunStarted`、`AgentRunFinished`。
 - 注册 agent 的 tool call 进入 `runtime.call_tool()`。
 
-## 场景二：Registered Agent Deny Path
+## 场景二：Registered Agent Tracing
+
+运行：
+
+```bash
+python -m pytest tests/test_tracing.py::test_registered_agent_emits_agent_run_trace_parenting_tool_span tests/test_tracing.py::test_registered_agent_failure_finishes_agent_run_trace_span -q
+```
+
+验证点：
+
+- 注册 agent 产生 `TraceSpanStarted(span_kind=agent_run)` 和 `TraceSpanFinished(span_kind=agent_run)`。
+- tool call span 和 agent run span 使用同一个 `trace_id`。
+- tool call span 的 `parent_span_id` 指向 agent run span。
+- agent 失败时仍然记录 `AgentRunFinished(status=failed)` 和失败的 agent run span finish。
+
+## 场景三：Registered Agent Deny Path
 
 运行：
 
@@ -53,7 +69,7 @@ python -m pytest tests/test_agent_registry_contract.py::test_registered_agent_de
 - transcript status 为 `blocked`。
 - audit 包含 `RuntimeError`。
 
-## 场景三：Provider Retry / Backoff
+## 场景四：Provider Retry / Backoff
 
 运行：
 
@@ -68,7 +84,7 @@ python -m pytest tests/test_provider_real_agent.py::test_openai_compatible_trans
 - 最终错误会 redact API key。
 - retry delay 使用指数 backoff。
 
-## 场景四：LangGraph Optional Framework Agent
+## 场景五：LangGraph Optional Framework Agent
 
 如果已安装 `langgraph`，运行：
 
@@ -83,7 +99,7 @@ python -m pytest tests/test_langgraph_agent_registration.py -q
 - 工具执行进入 `runtime.call_tool()`。
 - audit 记录 agent lifecycle 和 tool lifecycle。
 
-## 场景五：完整回归
+## 场景六：完整回归
 
 运行：
 
@@ -94,7 +110,7 @@ python -m pytest -q
 当前本地证据：
 
 ```text
-166 passed in 36.09s
+168 passed in 20.61s
 ```
 
 ## Design Partner 记录要求
@@ -107,5 +123,6 @@ python -m pytest -q
 - 是否注册到 runtime。
 - policy allow/deny 结果。
 - audit event sequence。
+- `trace_id`、agent run span、tool call span 和 `parent_span_id` 是否能串起来。
 - retry/backoff 是否触发。
 - 未覆盖或失败原因。

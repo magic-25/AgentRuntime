@@ -5,7 +5,7 @@
 
 ## 目的
 
-`register_agent(...)` 是 Agent Runtime 的正式 agent registration contract。它用于把一个外部 agent 纳入 runtime 治理，让 runtime 能记录 agent identity、capabilities、runtime profile 和 lifecycle events。
+`register_agent(...)` 是 Agent Runtime 的正式 agent registration contract。它用于把一个外部 agent 纳入 runtime 治理，让 runtime 能记录 agent identity、capabilities、runtime profile、lifecycle events 和可选 tracing span。
 
 注册 agent 后，provider 或 framework 仍然可以负责生成 tool call，但工具执行必须进入 `runtime.call_tool()`。
 
@@ -76,6 +76,35 @@ AgentRunFinished
 ```
 
 如果 policy deny，`ToolExecutionFinished` 不应出现，应该出现 `RuntimeError`，并且 agent 不能回落到 direct execution。
+
+## Tracing Contract
+
+当 runtime 配置 `tracing.enabled=true` 时，注册 agent 的一次运行还应产生 agent-run 级 trace span：
+
+```text
+TraceSpanStarted(span_kind=agent_run)
+TraceSpanStarted(span_kind=tool_call)
+TraceSpanFinished(span_kind=tool_call)
+TraceSpanFinished(span_kind=agent_run)
+```
+
+trace 关系必须满足：
+
+- agent-run span 和该 agent run 内的 tool-call span 使用同一个 `trace_id`。
+- tool-call span 使用自己的 `span_id`。
+- tool-call span payload 包含 `agent_id`。
+- tool-call span payload 的 `parent_span_id` 指向 agent-run span 的 `span_id`。
+- agent transcript 暴露 `trace_id` 和 `agent_span_id`，用于把业务输出、audit events 和 tracing 串起来。
+- 如果 agent 自身抛出异常，runtime 仍然记录 `AgentRunFinished(status=failed)` 和 `TraceSpanFinished(span_kind=agent_run, status=failed)`，然后把原异常继续抛给调用方。
+
+这个 contract 的目的不是替代 audit，而是让 observer、tracing backend 或 design partner runbook 能还原：
+
+```text
+registered_agent.run()
+  -> provider/framework selects tool call
+  -> runtime.call_tool()
+  -> policy/audit/executor
+```
 
 ## Deny-Path Contract
 

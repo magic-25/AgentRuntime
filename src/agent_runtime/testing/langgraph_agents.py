@@ -18,6 +18,8 @@ class LangGraphAgentTranscript:
     audit_events: list[str] = field(default_factory=list)
     agent_id: str | None = None
     agent_metadata: dict[str, Any] = field(default_factory=dict)
+    trace_id: str | None = None
+    agent_span_id: str | None = None
     error: str | None = None
 
 

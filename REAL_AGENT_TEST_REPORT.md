@@ -1,6 +1,6 @@
 # Agent Runtime Real Agent 测试报告
 
-报告日期：2026-06-17  
+报告日期：2026-06-18
 报告状态：公开测试报告  
 产品状态：Technical Preview  
 下一门禁：Design Partner Pilot
@@ -82,6 +82,7 @@
 - tool call 是否进入 runtime。
 - policy 是否能 allow/deny。
 - audit 是否能记录 agent lifecycle 和 tool lifecycle。
+- tracing 是否能把 registered agent run 和 tool call 串成同一条 trace。
 - provider key 是否不会泄漏。
 - 未注册 agent 和注册 agent 的执行过程是否可区分。
 
@@ -105,6 +106,7 @@
 | RAG-014 | Registered agent deny path | `test_registered_agent_deny_path_cannot_fall_back_to_direct_execution` | policy deny 时工具不执行，注册 agent 不回落 direct execution | verified |
 | RAG-015 | Provider retry/backoff | `test_openai_compatible_transport_retries_transient_network_errors`，`test_openai_compatible_transport_retries_429_and_5xx_then_redacts_final_error` | EOF、429、5xx 使用 backoff retry，最终错误 redacts key | verified |
 | RAG-016 | LangGraph optional framework agent | `test_langgraph_agent_compares_unregistered_and_registered_runtime_execution` | LangGraph graph 未注册直连工具，注册后进入 runtime lifecycle/audit | verified |
+| RAG-017 | Registered agent tracing | `test_registered_agent_emits_agent_run_trace_parenting_tool_span`，`test_registered_agent_failure_finishes_agent_run_trace_span` | agent run span 和 tool call span 使用同一 `trace_id`，失败 agent run 也关闭 span | verified |
 
 ## 用例详情
 
@@ -382,6 +384,27 @@ export GLM_MODEL="glm-5.2"
 这比单独比较 tool call 更贴近真实生产使用方式：对比对象是同一个 agent 的完整执行过程，而不是单个 tool call。
 
 详细报告见 [PROVIDER_RUNTIME_COMPARISON_REPORT.md](PROVIDER_RUNTIME_COMPARISON_REPORT.md)。
+
+**结论**
+
+通过。
+
+### RAG-017 Registered Agent Tracing
+
+**用例设计**
+
+使用 fake OpenAI-compatible provider response 构造 `glm-agent`，通过 `runtime.register_agent(...)` 注册后执行，并开启 `tracing.enabled=true`。另构造一个会抛异常的本地 agent，用于验证失败路径。
+
+**输出结果**
+
+- 成功路径：audit 中出现 `TraceSpanStarted(span_kind=agent_run)`、`TraceSpanStarted(span_kind=tool_call)`、`TraceSpanFinished(span_kind=tool_call)`、`TraceSpanFinished(span_kind=agent_run)`。
+- tool call span 和 agent run span 使用同一个 `trace_id`。
+- tool call span payload 包含 `agent_id` 和 `parent_span_id`，其中 `parent_span_id` 指向 agent run span。
+- 失败路径：agent 抛异常时，runtime 仍记录 `AgentRunFinished(status=failed)` 和 `TraceSpanFinished(span_kind=agent_run, status=failed)`。
+
+**输出解释**
+
+这证明 agent 注册到 runtime 后，不只是多了 audit lifecycle，还能形成可复盘的 trace tree：agent run 是父 span，runtime tool call 是子 span。
 
 **结论**
 

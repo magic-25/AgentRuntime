@@ -55,6 +55,7 @@ ToolCall -> Context Filter -> Policy Engine -> Approval Gate -> Executor -> Resu
 - GLM/OpenAI-compatible provider agent optional integration test。
 - agent registration lifecycle comparison test。
 - formal agent registry contract。
+- registered agent tracing test。
 - provider retry/backoff test。
 - optional LangGraph framework agent registration test。
 

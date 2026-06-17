@@ -75,12 +75,16 @@ class ToolCall:
         actor: dict[str, Any],
         environment: str,
         run_id: str | None = None,
+        trace_id: str | None = None,
+        span_id: str | None = None,
+        agent_id: str | None = None,
     ) -> "ToolCall":
         return cls(
             tool_call_id=f"tc_{uuid4().hex}",
             run_id=run_id or f"run_{uuid4().hex}",
-            trace_id=f"trace_{uuid4().hex}",
-            span_id=f"span_{uuid4().hex}",
+            trace_id=trace_id or f"trace_{uuid4().hex}",
+            span_id=span_id or f"span_{uuid4().hex}",
+            agent_id=agent_id,
             tool_name=tool_name,
             input=input,
             actor=actor,

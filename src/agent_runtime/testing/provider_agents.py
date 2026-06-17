@@ -35,6 +35,8 @@ class ProviderToolCallingTranscript:
     registration: str = "runtime"
     agent_id: str | None = None
     agent_metadata: dict[str, Any] = field(default_factory=dict)
+    trace_id: str | None = None
+    agent_span_id: str | None = None
     raw_tool_name: str | None = None
     raw_arguments: dict[str, Any] = field(default_factory=dict)
     tool_results: list[ToolResult] = field(default_factory=list)
