@@ -17,6 +17,7 @@ ToolCall -> Context Filter -> Policy Engine -> Approval Gate -> Executor -> Resu
 - [测试报告](TEST_REPORT.md)
 - [场景测试报告](SCENARIO_TEST_REPORT.md)
 - [Real Agent 测试报告](REAL_AGENT_TEST_REPORT.md)
+- [开源 Agent 采用评估](OPEN_SOURCE_AGENT_EVALUATION.md)
 - [贡献指南](CONTRIBUTING.md)
 - [安全策略](SECURITY.md)
 - [变更记录](CHANGELOG.md)
@@ -48,6 +49,7 @@ ToolCall -> Context Filter -> Policy Engine -> Approval Gate -> Executor -> Resu
 - remote executor contract beta。
 - sandbox conformance 和 Docker runtime evidence。
 - Code/CI reference pilot。
+- GLM/OpenAI-compatible provider agent optional integration test。
 
 ### Platform-Ready Contracts
 
@@ -77,6 +79,19 @@ ToolCall -> Context Filter -> Policy Engine -> Approval Gate -> Executor -> Resu
 ```bash
 python -m pytest
 PYTHONPATH=src python examples/minimal_agent.py
+```
+
+运行 real-agent 测试：
+
+```bash
+python -m pytest tests/test_real_agent_scenarios.py tests/test_provider_real_agent.py -q
+```
+
+真实 GLM/Z.AI provider integration 默认跳过。不要把 API key 写入仓库；如需本地验证，使用轮换后的本机环境变量：
+
+```bash
+export GLM_API_KEY="<rotated-local-key>"
+python -m pytest tests/test_provider_real_agent.py::test_glm_provider_agent_can_call_real_provider_when_key_is_configured -q
 ```
 
 editable install 模式：

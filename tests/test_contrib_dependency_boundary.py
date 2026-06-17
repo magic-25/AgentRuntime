@@ -21,3 +21,4 @@ def test_pyproject_defines_contrib_optional_dependency_groups():
     assert "contrib-adapters" in optional
     assert "contrib-sandbox" in optional
     assert "pilot-code-ci" in optional
+    assert "real-agents" in optional

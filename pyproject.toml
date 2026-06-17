@@ -8,6 +8,7 @@ requires-python = ">=3.12"
 contrib-adapters = []
 contrib-sandbox = []
 pilot-code-ci = []
+real-agents = []
 
 [project.scripts]
 agent-runtime = "agent_runtime.cli.main:main"
@@ -23,3 +24,6 @@ include = ["agent_runtime*", "agent_runtime_contrib*"]
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+markers = [
+    "integration: tests that call external services or require local integration credentials",
+]
