@@ -10,6 +10,7 @@ contrib-sandbox = []
 pilot-code-ci = []
 real-agents = []
 framework-agents = ["langgraph"]
+complete-report = ["pillow"]
 
 [project.scripts]
 agent-runtime = "agent_runtime.cli.main:main"

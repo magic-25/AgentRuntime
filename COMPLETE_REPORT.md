@@ -17,6 +17,14 @@
 
 ## 如何复现
 
+先确保 ignored `.env` 中有轮换后的真实 provider key：
+
+```bash
+cp .env.example .env
+```
+
+需要设置 `GLM_API_KEY` 或 `ZAI_API_KEY`。`.env` 不提交，报告不会打印或写入 API key。
+
 运行：
 
 ```bash
@@ -28,7 +36,9 @@ PYTHONPATH=src python examples/complete_runtime_report.py
 ```json
 {
   "path": ".agent-runtime/complete-report",
-  "scenario_count": 5
+  "scenario_count": 5,
+  "provider_mode": "real",
+  "screenshot": ".agent-runtime/complete-report/complete-report.png"
 }
 ```
 
@@ -37,6 +47,8 @@ PYTHONPATH=src python examples/complete_runtime_report.py
 ```text
 .agent-runtime/complete-report/complete-report.json
 .agent-runtime/complete-report/complete-report.md
+.agent-runtime/complete-report/complete-report.html
+.agent-runtime/complete-report/complete-report.png
 .agent-runtime/complete-report/*-audit.jsonl
 ```
 
@@ -128,11 +140,13 @@ call echo using provider tool call
 **Agent 做了什么**
 
 ```text
-request:fake-glm
+request:glm
 tool_call:echo
 runtime:success
 stop
 ```
+
+测试环境为了保持 CI 稳定，会显式使用 fake provider mode；用户运行 `examples/complete_runtime_report.py` 默认使用真实 `.env` key。
 
 **Runtime 输出**
 
@@ -301,4 +315,4 @@ agent_run
 
 ## 结论
 
-`COMPLETE_REPORT.md` 和 `examples/complete_runtime_report.py` 提供了一个完整、可复现、不依赖真实 API key 的体验入口。它展示 Agent Runtime 不只是让 agent 调用工具，而是把 agent 行为变成可治理、可解释、可审计的运行链路。
+`COMPLETE_REPORT.md` 和 `examples/complete_runtime_report.py` 提供了一个完整、可复现、默认使用真实 provider API key 的体验入口。它展示 Agent Runtime 不只是让 agent 调用工具，而是把 agent 行为变成可治理、可解释、可审计的运行链路。

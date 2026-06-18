@@ -19,14 +19,15 @@ def _load_complete_report_module():
 def test_complete_runtime_report_generates_multi_agent_runtime_outputs(tmp_path):
     module = _load_complete_report_module()
 
-    report = module.build_complete_report(tmp_path)
+    report = module.build_complete_report(tmp_path, provider_mode="fake")
 
     assert report["report_type"] == "complete_runtime_report"
     assert report["product"] == "Agent Runtime"
     assert report["summary"]["scenario_count"] == 5
+    assert report["summary"]["provider_mode"] == "fake"
     assert report["summary"]["questions_answered"] == [
         "agent做了什么",
-        "为什么允许、为什么拒绝、是否强隔离、是否可审计",
+        "为什么允许、为什么拒绝、是否经过approval、是否强隔离、是否可审计",
     ]
 
     scenarios = {scenario["id"]: scenario for scenario in report["scenarios"]}
@@ -68,7 +69,12 @@ def test_complete_runtime_report_generates_multi_agent_runtime_outputs(tmp_path)
 
     json_path = tmp_path / "complete-report.json"
     markdown_path = tmp_path / "complete-report.md"
+    html_path = tmp_path / "complete-report.html"
+    screenshot_path = tmp_path / "complete-report.png"
     assert json.loads(json_path.read_text(encoding="utf-8"))["summary"] == report["summary"]
     markdown = markdown_path.read_text(encoding="utf-8")
     assert "# Agent Runtime Complete Report" in markdown
     assert "Governed Trace" in markdown
+    assert "真实 provider" in html_path.read_text(encoding="utf-8")
+    assert screenshot_path.exists()
+    assert screenshot_path.stat().st_size > 0
