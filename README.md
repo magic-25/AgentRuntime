@@ -14,6 +14,7 @@ ToolCall -> Context Filter -> Policy Engine -> Approval Gate -> Executor -> Resu
 ## 项目文档
 
 - [用户指南：场景与概念](USER_GUIDE.md)
+- [Complete Report：完整运行体验](COMPLETE_REPORT.md)：多个 agent 放进 runtime 后的输出、治理证据和 trace。
 - [测试报告](TEST_REPORT.md)
 - [场景测试报告](SCENARIO_TEST_REPORT.md)
 - [Real Agent 测试报告](REAL_AGENT_TEST_REPORT.md)：测试 agent 类型、职责和用例矩阵。
@@ -56,6 +57,7 @@ ToolCall -> Context Filter -> Policy Engine -> Approval Gate -> Executor -> Resu
 - agent registration lifecycle comparison test。
 - formal agent registry contract。
 - governed agent tracing test。
+- complete runtime report runner。
 - provider retry/backoff test。
 - optional LangGraph framework agent registration test。
 
