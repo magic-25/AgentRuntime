@@ -58,6 +58,7 @@ ToolCall -> Context Filter -> Policy Engine -> Approval Gate -> Executor -> Resu
 - formal agent registry contract。
 - governed agent tracing test。
 - complete runtime report runner。
+- single agent run screenshot runner。
 - provider retry/backoff test。
 - optional LangGraph framework agent registration test。
 

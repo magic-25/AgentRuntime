@@ -46,7 +46,7 @@
 8. **Real-Agent Loop**：验证自写 agent loop 会产生 tool call、读取结果并继续或停止。
 9. **Provider-Agent Optional Integration**：验证 GLM/OpenAI-compatible provider tool-call shape 可以被 agent 解析并进入 runtime；本轮使用 ignored `.env` 中的本地 key 运行真实 provider 测试。
 10. **Governed Agent Tracing**：验证 trace 同时回答 agent 做了什么、为什么允许/拒绝、是否强隔离、是否可审计。
-11. **Complete Runtime Report**：验证多个 agent 放进 runtime 后能生成完整体验报告，包括 transcript、tool result、governance summary、trace 和 audit。
+11. **Complete Report / Run Screenshot Artifacts**：验证多个 agent 的完整体验报告，以及单个真实 provider agent run 的运行截图 artifact。
 12. **Pilot E2E**：验证 Code/CI reference pilot 和 staging internal admin pilot 的实际可跑路径。
 
 测试策略不是只看“命令是否返回 0”，还要解释输出语义。例如 remote backend conformance 返回 `passed=false`，但原因是 `remote.contract_beta_only`，这符合当前 support matrix。
@@ -69,6 +69,7 @@
 | REQ-012 | 至少提供一个真实 provider agent 的可执行接入路径，且不提交 API key | TC-015 GLM/OpenAI-compatible provider agent | `REAL_AGENT_TEST_REPORT.md`，`tests/test_provider_real_agent.py` | verified |
 | REQ-013 | registered agent 在 runtime 中执行时必须能追踪 agent run span、tool call span、policy 决策、approval gate、sandbox 强隔离、audit commit 和失败路径 | TC-016 Governed agent tracing | `tests/test_tracing.py`，`AGENT_REGISTRY_CONTRACT.md` | verified |
 | REQ-014 | 必须有一份完整运行体验报告，展示多个 agent 进入 runtime 后的 output、治理证据、trace 和 audit | TC-017 Complete runtime report | `COMPLETE_REPORT.md`，`examples/complete_runtime_report.py`，`tests/test_complete_runtime_report.py` | verified |
+| REQ-015 | 必须能生成单次 agent 在 Agent Runtime 中运行时产生的截图，展示 prompt、provider、tool call/result、policy、audit 和 trace | TC-018 Agent run screenshot | `examples/agent_run_screenshot.py`，`tests/test_agent_run_screenshot.py` | verified |
 
 ## 测试用例详情
 
@@ -87,12 +88,12 @@ python -m pytest -q
 **输出结果**
 
 ```text
-173 passed in 23.52s
+174 passed in 23.96s
 ```
 
 **输出解释**
 
-`173 passed` 表示当前测试套件全部通过，且真实 GLM provider integration、formal agent registry contract、registered agent deny-path、governed agent tracing、complete runtime report、provider retry/backoff、LangGraph optional framework agent 都已验证。覆盖范围包括 adapter、audit、policy、sandbox、platform、release manifest、Code/CI pilot、staging pilot、SQLite audit、tracing、11 个基于用户指南场景的 acceptance tests、4 个自写 real-agent loop tests、complete runtime report，以及 provider/framework-agent tests。
+`174 passed` 表示当前测试套件全部通过，且真实 GLM provider integration、formal agent registry contract、registered agent deny-path、governed agent tracing、complete runtime report、agent run screenshot、provider retry/backoff、LangGraph optional framework agent 都已验证。覆盖范围包括 adapter、audit、policy、sandbox、platform、release manifest、Code/CI pilot、staging pilot、SQLite audit、tracing、11 个基于用户指南场景的 acceptance tests、4 个自写 real-agent loop tests、complete runtime report、single-run screenshot，以及 provider/framework-agent tests。
 
 **结论**
 
@@ -607,6 +608,16 @@ complete runtime report 由 `tests/test_complete_runtime_report.py` 覆盖。测
 
 测试断言 `complete-report.json`、`complete-report.md`、`complete-report.html` 和 `complete-report.png` 都会生成，并且每个 scenario 都包含 transcript、tool results、policy/approval/sandbox/audit governance summary、governed trace 和 audit event sequence。
 
+### TC-018 Agent Run Screenshot
+
+agent run screenshot 由 `tests/test_agent_run_screenshot.py` 覆盖。测试以 explicit fake provider mode 运行 `examples/agent_run_screenshot.py` 的 builder，验证单次 registered provider agent run 能生成：
+
+- `real-provider-agent-run.json`
+- `real-provider-agent-run.html`
+- `real-provider-agent-run.png`
+
+用户直接运行 `PYTHONPATH=src python examples/agent_run_screenshot.py` 时默认使用 ignored `.env` 中的真实 GLM/Z.AI key。该 artifact 不是汇总报告，而是一条 agent run 的截图：prompt、provider、decisions、tool call、tool result、policy、audit、trace 都在同一张图里。
+
 ## 回归范围说明
 
 本轮回归覆盖：
@@ -627,6 +638,7 @@ complete runtime report 由 `tests/test_complete_runtime_report.py` 覆盖。测
 - sandbox abuse、conformance、hardening、runtime evidence、sidecar、support matrix。
 - scenario-based user guide acceptance。
 - complete runtime report。
+- single agent run screenshot artifact。
 - provider-agent tool-call parsing、GLM optional integration、agent registry contract、registered deny-path、governed agent tracing、retry/backoff、LangGraph optional framework agent 和 secret boundary。
 - SQLite audit。
 - tracing。

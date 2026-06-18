@@ -54,6 +54,21 @@ PYTHONPATH=src python examples/complete_runtime_report.py
 
 这些本地运行产物不提交。根目录的 `COMPLETE_REPORT.md` 只提交脱敏、稳定的体验摘要。
 
+如果需要的是“某一个 agent 在 Agent Runtime 中运行时产生的截图”，运行：
+
+```bash
+PYTHONPATH=src python examples/agent_run_screenshot.py
+```
+
+它会生成单次 provider agent run 产物：
+
+```text
+.agent-runtime/run-screenshots/real-provider-agent-run.json
+.agent-runtime/run-screenshots/real-provider-agent-run.html
+.agent-runtime/run-screenshots/real-provider-agent-run.png
+.agent-runtime/run-screenshots/real-provider-agent-run-audit.jsonl
+```
+
 ## 输出模型
 
 每个 scenario 都包含：
