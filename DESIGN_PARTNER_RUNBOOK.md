@@ -39,12 +39,19 @@ python -m pytest tests/test_provider_real_agent.py::test_same_agent_unregistered
 - 注册 agent 产生 `AgentRegistered`、`AgentRunStarted`、`AgentRunFinished`。
 - 注册 agent 的 tool call 进入 `runtime.call_tool()`。
 
-## 场景二：Registered Agent Tracing
+## 场景二：Governed Agent Tracing
 
 运行：
 
 ```bash
-python -m pytest tests/test_tracing.py::test_registered_agent_emits_agent_run_trace_parenting_tool_span tests/test_tracing.py::test_registered_agent_failure_finishes_agent_run_trace_span -q
+python -m pytest \
+  tests/test_tracing.py::test_registered_agent_emits_agent_run_trace_parenting_tool_span \
+  tests/test_tracing.py::test_registered_agent_failure_finishes_agent_run_trace_span \
+  tests/test_tracing.py::test_runtime_trace_explains_allowed_tool_policy_and_auditability \
+  tests/test_tracing.py::test_runtime_trace_explains_denied_tool_without_execution \
+  tests/test_tracing.py::test_runtime_trace_records_strong_sandbox_isolation \
+  tests/test_tracing.py::test_runtime_trace_records_approval_gate_when_required \
+  -q
 ```
 
 验证点：
@@ -52,6 +59,11 @@ python -m pytest tests/test_tracing.py::test_registered_agent_emits_agent_run_tr
 - 注册 agent 产生 `TraceSpanStarted(span_kind=agent_run)` 和 `TraceSpanFinished(span_kind=agent_run)`。
 - tool call span 和 agent run span 使用同一个 `trace_id`。
 - tool call span 的 `parent_span_id` 指向 agent run span。
+- policy evaluation span 记录 allow/deny 的 `decision`、`reason`、`rule_id` 和 `policy_version`。
+- policy deny 时 tool span 仍然关闭，并记录拒绝原因。
+- approval gate span 记录 `approved`、`reason`、`timed_out`、`rule_id` 和 `risk_level`。
+- sandbox execution span 记录 `isolation_level=strong`、backend 和可用状态。
+- tool span finish 记录 `audit_status=committed`。
 - agent 失败时仍然记录 `AgentRunFinished(status=failed)` 和失败的 agent run span finish。
 
 ## 场景三：Registered Agent Deny Path
@@ -110,7 +122,7 @@ python -m pytest -q
 当前本地证据：
 
 ```text
-168 passed in 20.61s
+172 passed in 23.65s
 ```
 
 ## Design Partner 记录要求

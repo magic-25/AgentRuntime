@@ -79,14 +79,27 @@ AgentRunFinished
 
 ## Tracing Contract
 
-当 runtime 配置 `tracing.enabled=true` 时，注册 agent 的一次运行还应产生 agent-run 级 trace span：
+当 runtime 配置 `tracing.enabled=true` 时，注册 agent 的一次运行还应产生 governed trace。它回答两个问题：
+
+1. agent 做了什么。
+2. runtime 为什么允许、为什么拒绝、是否强隔离、是否可审计。
+
+最小 trace tree：
 
 ```text
 TraceSpanStarted(span_kind=agent_run)
-TraceSpanStarted(span_kind=tool_call)
-TraceSpanFinished(span_kind=tool_call)
+  TraceSpanStarted(span_kind=tool_call)
+    TraceSpanStarted(span_kind=policy_evaluation)
+    TraceSpanFinished(span_kind=policy_evaluation)
+    TraceSpanStarted(span_kind=approval_gate)
+    TraceSpanFinished(span_kind=approval_gate)
+    TraceSpanStarted(span_kind=sandbox_execution)
+    TraceSpanFinished(span_kind=sandbox_execution)
+  TraceSpanFinished(span_kind=tool_call)
 TraceSpanFinished(span_kind=agent_run)
 ```
+
+`approval_gate` 只在 `require_approval` path 出现。`sandbox_execution` 只在 sandboxed tool path 出现。
 
 trace 关系必须满足：
 
@@ -94,6 +107,11 @@ trace 关系必须满足：
 - tool-call span 使用自己的 `span_id`。
 - tool-call span payload 包含 `agent_id`。
 - tool-call span payload 的 `parent_span_id` 指向 agent-run span 的 `span_id`。
+- policy-evaluation span 的 `parent_span_id` 指向 tool-call span，并记录 `decision`、`reason`、`rule_id`、`capability` 和 `policy_version`。
+- policy deny 时 tool-call span 也必须被关闭，payload 记录 `status=denied`、`decision=deny`、`reason` 和 `audit_status=committed`。
+- approval-gate span 的 `parent_span_id` 指向 tool-call span，并记录 `approved`、`reason`、`timed_out`、`rule_id` 和 `risk_level`。
+- sandbox-execution span 的 `parent_span_id` 指向 tool-call span，并记录 `isolation_level=strong`、`backend`、`available` 和 `status`。
+- 成功 tool-call span finish payload 必须包含 `audit_status=committed`，用于说明该运行片段已经写入 audit sink。
 - agent transcript 暴露 `trace_id` 和 `agent_span_id`，用于把业务输出、audit events 和 tracing 串起来。
 - 如果 agent 自身抛出异常，runtime 仍然记录 `AgentRunFinished(status=failed)` 和 `TraceSpanFinished(span_kind=agent_run, status=failed)`，然后把原异常继续抛给调用方。
 
@@ -103,7 +121,11 @@ trace 关系必须满足：
 registered_agent.run()
   -> provider/framework selects tool call
   -> runtime.call_tool()
-  -> policy/audit/executor
+  -> policy evaluation
+  -> approval gate if required
+  -> sandbox enforcement if required
+  -> audit commit
+  -> executor
 ```
 
 ## Deny-Path Contract

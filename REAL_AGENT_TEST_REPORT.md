@@ -106,7 +106,7 @@
 | RAG-014 | Registered agent deny path | `test_registered_agent_deny_path_cannot_fall_back_to_direct_execution` | policy deny 时工具不执行，注册 agent 不回落 direct execution | verified |
 | RAG-015 | Provider retry/backoff | `test_openai_compatible_transport_retries_transient_network_errors`，`test_openai_compatible_transport_retries_429_and_5xx_then_redacts_final_error` | EOF、429、5xx 使用 backoff retry，最终错误 redacts key | verified |
 | RAG-016 | LangGraph optional framework agent | `test_langgraph_agent_compares_unregistered_and_registered_runtime_execution` | LangGraph graph 未注册直连工具，注册后进入 runtime lifecycle/audit | verified |
-| RAG-017 | Registered agent tracing | `test_registered_agent_emits_agent_run_trace_parenting_tool_span`，`test_registered_agent_failure_finishes_agent_run_trace_span` | agent run span 和 tool call span 使用同一 `trace_id`，失败 agent run 也关闭 span | verified |
+| RAG-017 | Governed agent tracing | `tests/test_tracing.py` | trace 同时说明 agent 做了什么、为什么允许/拒绝、是否经过 approval、是否强隔离、是否可审计 | verified |
 
 ## 用例详情
 
@@ -389,22 +389,27 @@ export GLM_MODEL="glm-5.2"
 
 通过。
 
-### RAG-017 Registered Agent Tracing
+### RAG-017 Governed Agent Tracing
 
 **用例设计**
 
-使用 fake OpenAI-compatible provider response 构造 `glm-agent`，通过 `runtime.register_agent(...)` 注册后执行，并开启 `tracing.enabled=true`。另构造一个会抛异常的本地 agent，用于验证失败路径。
+使用 fake OpenAI-compatible provider response 构造 `glm-agent`，通过 `runtime.register_agent(...)` 注册后执行，并开启 `tracing.enabled=true`。另构造 policy allow、policy deny、approval gate、sandboxed command 和失败 agent 路径，用于验证 governed trace。
 
 **输出结果**
 
 - 成功路径：audit 中出现 `TraceSpanStarted(span_kind=agent_run)`、`TraceSpanStarted(span_kind=tool_call)`、`TraceSpanFinished(span_kind=tool_call)`、`TraceSpanFinished(span_kind=agent_run)`。
 - tool call span 和 agent run span 使用同一个 `trace_id`。
 - tool call span payload 包含 `agent_id` 和 `parent_span_id`，其中 `parent_span_id` 指向 agent run span。
+- policy evaluation span 记录 `decision`、`reason`、`rule_id`、`capability` 和 `policy_version`。
+- policy deny 时，tool call span 仍然会以 `status=denied` 关闭，并记录拒绝原因。
+- approval gate span 记录 `approved`、`reason`、`timed_out`、`rule_id` 和 `risk_level`。
+- sandbox execution span 记录 `isolation_level=strong`、backend 和可用状态。
+- tool call span finish 记录 `audit_status=committed`。
 - 失败路径：agent 抛异常时，runtime 仍记录 `AgentRunFinished(status=failed)` 和 `TraceSpanFinished(span_kind=agent_run, status=failed)`。
 
 **输出解释**
 
-这证明 agent 注册到 runtime 后，不只是多了 audit lifecycle，还能形成可复盘的 trace tree：agent run 是父 span，runtime tool call 是子 span。
+这证明 agent 注册到 runtime 后，不只是多了 audit lifecycle，还能形成可复盘的 governed trace tree：agent run 是父 span，runtime tool call 是子 span，policy、approval 和 sandbox 是 tool call 下的治理子 span。
 
 **结论**
 

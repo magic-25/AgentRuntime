@@ -3,7 +3,9 @@ import json
 import pytest
 
 from agent_runtime import AgentMetadata, RuntimeProfile
+from agent_runtime.approval.base import StaticApprovalProvider
 from agent_runtime.core.runtime import AgentRuntime
+from agent_runtime.execution.base import ProcessResult
 from agent_runtime.testing.provider_agents import OpenAICompatibleToolCallingAgent
 
 
@@ -34,6 +36,26 @@ class FailingAgent:
         raise RuntimeError(f"agent failed: {prompt}")
 
 
+class RecordingSandboxExecutor:
+    backend_name = "recording-strong-sandbox"
+    available = True
+
+    def execute(self, spec):
+        return ProcessResult(exit_code=0, stdout="sandbox-ok", stderr="")
+
+
+def _events(audit_path):
+    return [json.loads(line) for line in audit_path.read_text(encoding="utf-8").splitlines()]
+
+
+def _trace_event(events, event_type, span_kind):
+    return next(
+        event
+        for event in events
+        if event["event_type"] == event_type and event["payload"].get("span_kind") == span_kind
+    )
+
+
 def test_runtime_emits_trace_span_events_for_tool_call(tmp_path):
     audit_path = tmp_path / "audit.jsonl"
     runtime = AgentRuntime.from_dict(
@@ -52,9 +74,9 @@ def test_runtime_emits_trace_span_events_for_tool_call(tmp_path):
 
     runtime.call_tool("echo", {"value": "hello"}, actor={}, environment="dev")
 
-    events = [json.loads(line) for line in audit_path.read_text(encoding="utf-8").splitlines()]
-    started = next(event for event in events if event["event_type"] == "TraceSpanStarted")
-    finished = next(event for event in events if event["event_type"] == "TraceSpanFinished")
+    events = _events(audit_path)
+    started = _trace_event(events, "TraceSpanStarted", "tool_call")
+    finished = _trace_event(events, "TraceSpanFinished", "tool_call")
 
     assert started["trace_id"] == finished["trace_id"]
     assert started["span_id"] == finished["span_id"]
@@ -63,6 +85,150 @@ def test_runtime_emits_trace_span_events_for_tool_call(tmp_path):
     assert "finished_at" in finished["payload"]
     assert finished["payload"]["duration_ms"] >= 0
     assert finished["payload"]["status"] == "success"
+
+
+def test_runtime_trace_explains_allowed_tool_policy_and_auditability(tmp_path):
+    audit_path = tmp_path / "governed-trace.jsonl"
+    runtime = AgentRuntime.from_dict(
+        {
+            "version": 7,
+            "default_decision": "deny",
+            "audit": {"path": str(audit_path)},
+            "tracing": {"enabled": True},
+            "rules": [{"id": "allow-echo", "environment": "dev", "tool": "echo", "effect": "allow"}],
+        }
+    )
+
+    @runtime.tool(name="echo")
+    def echo(value: str) -> str:
+        return value
+
+    result = runtime.call_tool("echo", {"value": "hello"}, actor={"id": "agent"}, environment="dev")
+
+    events = _events(audit_path)
+    tool_start = _trace_event(events, "TraceSpanStarted", "tool_call")
+    tool_finish = _trace_event(events, "TraceSpanFinished", "tool_call")
+    policy_finish = _trace_event(events, "TraceSpanFinished", "policy_evaluation")
+
+    assert result.status == "success"
+    assert policy_finish["trace_id"] == tool_start["trace_id"]
+    assert policy_finish["payload"]["parent_span_id"] == tool_start["span_id"]
+    assert policy_finish["payload"]["decision"] == "allow"
+    assert policy_finish["payload"]["reason"] == "matched_rule"
+    assert policy_finish["payload"]["rule_id"] == "allow-echo"
+    assert policy_finish["payload"]["policy_version"] == 7
+    assert tool_finish["payload"]["status"] == "success"
+    assert tool_finish["payload"]["decision"] == "allow"
+    assert tool_finish["payload"]["audit_status"] == "committed"
+
+
+def test_runtime_trace_explains_denied_tool_without_execution(tmp_path):
+    audit_path = tmp_path / "denied-governed-trace.jsonl"
+    runtime = AgentRuntime.from_dict(
+        {
+            "version": 1,
+            "default_decision": "deny",
+            "audit": {"path": str(audit_path)},
+            "tracing": {"enabled": True},
+            "rules": [],
+        }
+    )
+
+    @runtime.tool(name="echo")
+    def echo(value: str) -> str:
+        return value
+
+    result = runtime.call_tool("echo", {"value": "blocked"}, actor={"id": "agent"}, environment="dev")
+
+    events = _events(audit_path)
+    event_types = [event["event_type"] for event in events]
+    tool_start = _trace_event(events, "TraceSpanStarted", "tool_call")
+    tool_finish = _trace_event(events, "TraceSpanFinished", "tool_call")
+    policy_finish = _trace_event(events, "TraceSpanFinished", "policy_evaluation")
+
+    assert result.status == "denied"
+    assert "ToolExecutionStarted" not in event_types
+    assert policy_finish["payload"]["decision"] == "deny"
+    assert policy_finish["payload"]["reason"] == "default_decision"
+    assert policy_finish["payload"]["parent_span_id"] == tool_start["span_id"]
+    assert tool_finish["trace_id"] == tool_start["trace_id"]
+    assert tool_finish["span_id"] == tool_start["span_id"]
+    assert tool_finish["payload"]["status"] == "denied"
+    assert tool_finish["payload"]["decision"] == "deny"
+    assert tool_finish["payload"]["reason"] == "default_decision"
+    assert tool_finish["payload"]["audit_status"] == "committed"
+
+
+def test_runtime_trace_records_strong_sandbox_isolation(tmp_path):
+    audit_path = tmp_path / "sandbox-governed-trace.jsonl"
+    runtime = AgentRuntime.from_dict(
+        {
+            "version": 1,
+            "default_decision": "deny",
+            "audit": {"path": str(audit_path)},
+            "tracing": {"enabled": True},
+            "rules": [
+                {"id": "allow-tool", "environment": "prod", "effect": "allow", "capabilities": ["tool.invoke:*"]},
+                {"id": "allow-command", "environment": "prod", "effect": "allow", "capabilities": ["command.execute:*"]},
+            ],
+        },
+        sandbox_executor=RecordingSandboxExecutor(),
+    )
+    runtime.sandboxed_command_tool(
+        name="sandboxed_status",
+        argv=["python", "-c", "print('sandbox-ok')"],
+        cwd=str(tmp_path),
+        risk_level="high",
+        capabilities_required=["tool.invoke:sandboxed_status", "command.execute:python"],
+        network_access=False,
+        read_paths=[str(tmp_path)],
+        write_paths=[],
+    )
+
+    result = runtime.call_tool("sandboxed_status", {}, actor={"id": "ops-agent"}, environment="prod")
+
+    events = _events(audit_path)
+    tool_start = _trace_event(events, "TraceSpanStarted", "tool_call")
+    sandbox_finish = _trace_event(events, "TraceSpanFinished", "sandbox_execution")
+
+    assert result.status == "success"
+    assert sandbox_finish["trace_id"] == tool_start["trace_id"]
+    assert sandbox_finish["payload"]["parent_span_id"] == tool_start["span_id"]
+    assert sandbox_finish["payload"]["isolation_level"] == "strong"
+    assert sandbox_finish["payload"]["backend"] == "recording-strong-sandbox"
+    assert sandbox_finish["payload"]["available"] is True
+    assert sandbox_finish["payload"]["status"] == "success"
+
+
+def test_runtime_trace_records_approval_gate_when_required(tmp_path):
+    audit_path = tmp_path / "approval-governed-trace.jsonl"
+    runtime = AgentRuntime.from_dict(
+        {
+            "version": 1,
+            "default_decision": "deny",
+            "audit": {"path": str(audit_path)},
+            "tracing": {"enabled": True},
+            "rules": [{"id": "approve-echo", "environment": "prod", "tool": "echo", "effect": "require_approval"}],
+        },
+        approval_provider=StaticApprovalProvider(approved=True, reason="approved-by-test"),
+    )
+
+    @runtime.tool(name="echo", risk_level="high")
+    def echo(value: str) -> str:
+        return value
+
+    result = runtime.call_tool("echo", {"value": "approved"}, actor={"id": "agent"}, environment="prod")
+
+    events = _events(audit_path)
+    tool_start = _trace_event(events, "TraceSpanStarted", "tool_call")
+    approval_finish = _trace_event(events, "TraceSpanFinished", "approval_gate")
+
+    assert result.status == "success"
+    assert approval_finish["trace_id"] == tool_start["trace_id"]
+    assert approval_finish["payload"]["parent_span_id"] == tool_start["span_id"]
+    assert approval_finish["payload"]["approved"] is True
+    assert approval_finish["payload"]["reason"] == "approved-by-test"
+    assert approval_finish["payload"]["status"] == "approved"
 
 
 def test_registered_agent_emits_agent_run_trace_parenting_tool_span(tmp_path):

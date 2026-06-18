@@ -12,7 +12,7 @@
 1. **未注册到 Agent Runtime**：agent 自己请求 GLM provider，自己解析 tool call，然后直接调用本地工具函数。
 2. **注册到 Agent Runtime**：同一个 agent 先通过 `runtime.register_agent(...)` 注册，然后由 registered runner 执行；agent 仍然请求 GLM provider，但工具调用必须进入 Agent Runtime。
 
-核心结论：未注册 agent 可以完成业务输出，但执行过程不进入统一治理链路。注册 agent 的业务输出相同，但多了 agent registration、agent run lifecycle、policy、audit、run id 和统一 `ToolResult`。当 `tracing.enabled=true` 时，runtime 还会把 agent run span 与 tool call span 关联到同一个 `trace_id`。
+核心结论：未注册 agent 可以完成业务输出，但执行过程不进入统一治理链路。注册 agent 的业务输出相同，但多了 agent registration、agent run lifecycle、policy、audit、run id 和统一 `ToolResult`。当 `tracing.enabled=true` 时，runtime 还会把 agent run、tool call、policy evaluation、approval gate、sandbox execution 和 audit commit 关联到同一个 governed trace。
 
 ## 测试文件
 
@@ -154,7 +154,7 @@ python -m pytest tests/test_provider_real_agent.py::test_same_agent_unregistered
 | tool execution | agent 直接调用本地函数 | agent 调用进入 `runtime.call_tool()` |
 | policy | 无统一 policy | `PolicyEvaluated` |
 | audit | 无统一 audit | agent lifecycle + tool call audit |
-| tracing | 无统一 trace/span | 可选；`agent_run` span 作为 `tool_call` span 的 parent |
+| tracing | 无统一 trace/span | 可选；`agent_run` span 作为 `tool_call` span 的 parent，policy/approval/sandbox 作为治理子 span |
 | result | 本地函数返回值包装成 direct result | runtime 返回 `ToolResult` |
 | run id | 无 | 有 |
 | deny 能力 | 需要 agent 自己实现 | runtime policy 可拒绝 |
@@ -204,7 +204,7 @@ agent -> GLM provider -> tool_call:echo -> runtime.call_tool()
   - `ToolExecutionStarted`
   - `ToolExecutionFinished`
   - `AgentRunFinished`
-- 如果启用 tracing，audit 还会包含 `TraceSpanStarted(span_kind=agent_run)`、`TraceSpanStarted(span_kind=tool_call)`、`TraceSpanFinished(span_kind=tool_call)`、`TraceSpanFinished(span_kind=agent_run)`，且 tool span 的 `parent_span_id` 指向 agent span。
+- 如果启用 tracing，audit 还会包含 `TraceSpanStarted(span_kind=agent_run)`、`TraceSpanStarted(span_kind=tool_call)`、`TraceSpanFinished(span_kind=tool_call)`、`TraceSpanFinished(span_kind=agent_run)`；tool span 的 `parent_span_id` 指向 agent span，policy/approval/sandbox span 的 `parent_span_id` 指向 tool span。
 
 这说明注册 agent 后，provider 仍然负责生成 tool call，但执行权、审计和治理边界进入 runtime。
 
@@ -227,10 +227,10 @@ agent -> GLM provider -> tool_call:echo -> runtime.call_tool()
 - `RuntimeProfile`
 - capabilities
 - lifecycle events
-- tracing span parent/child contract
+- governed tracing span parent/child contract
 - deny-path contract
 
-注册事件会把 metadata、capabilities 和 runtime profile 写入 audit。policy deny 时，注册 agent 不会回落到 direct execution。tracing 开启时，registered runner 会把 agent lifecycle 和 runtime tool execution 放进同一条 trace。
+注册事件会把 metadata、capabilities 和 runtime profile 写入 audit。policy deny 时，注册 agent 不会回落到 direct execution。tracing 开启时，registered runner 会把 agent lifecycle、runtime tool execution、policy decision、approval decision、sandbox isolation 和 audit commit 放进同一条 trace。
 
 ## 风险与限制
 

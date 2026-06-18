@@ -328,6 +328,7 @@ class AgentRuntime:
                 "agent_id": self._agent_trace_context["agent_id"],
                 "parent_span_id": self._agent_trace_context["agent_span_id"],
             }
+        span_started_at = perf_counter()
         if not self._audit("ToolCallRequested", call, {"input": call.input, **metadata}, environment=environment):
             result = ToolResult(
                 tool_call_id=call.tool_call_id,
@@ -337,8 +338,43 @@ class AgentRuntime:
             )
             self._observe_result(result)
             return result
+        if self._tracing_enabled():
+            if not self._audit(
+                "TraceSpanStarted",
+                call,
+                {
+                    "span_kind": "tool_call",
+                    "started_at": call.requested_at,
+                    "status": "started",
+                    **metadata,
+                },
+                environment=environment,
+            ):
+                result = self._audit_write_failed_result(call)
+                self._observe_result(result)
+                return result
 
         engine = PolicyEngine(self.config, self.registry)
+        policy_span_id = f"span_{uuid4().hex}"
+        policy_started_at = perf_counter()
+        if self._tracing_enabled():
+            if not self._audit_trace_span_for_call(
+                "TraceSpanStarted",
+                call,
+                policy_span_id,
+                {
+                    "span_kind": "policy_evaluation",
+                    "parent_span_id": call.span_id,
+                    "started_at": utc_now(),
+                    "status": "started",
+                    "policy_version": self.config.get("version", 1),
+                    **metadata,
+                },
+                environment=environment,
+            ):
+                result = self._audit_write_failed_result(call)
+                self._observe_result(result)
+                return result
         decision = engine.evaluate(tool_name, environment, actor)
         if self.policy_hook is not None:
             try:
@@ -358,6 +394,19 @@ class AgentRuntime:
                     error="policy.hook_failed",
                     run_id=call.run_id,
                 )
+                if self._tracing_enabled():
+                    if not self._finish_policy_trace_span(
+                        call,
+                        policy_span_id,
+                        policy_started_at,
+                        decision,
+                        metadata,
+                        status="denied",
+                        error="policy.hook_failed",
+                    ):
+                        result = self._audit_write_failed_result(call)
+                        self._observe_result(result)
+                        return result
                 if not self._audit(
                     "PolicyEvaluated",
                     call,
@@ -377,6 +426,20 @@ class AgentRuntime:
                     result = self._audit_write_failed_result(call)
                     self._observe_result(result)
                     return result
+                self._finish_tool_trace_span(
+                    call,
+                    span_started_at,
+                    metadata,
+                    status=result.status,
+                    decision="deny",
+                    reason="policy.hook_failed",
+                    error="policy.hook_failed",
+                )
+                self._observe_result(result)
+                return result
+        if self._tracing_enabled():
+            if not self._finish_policy_trace_span(call, policy_span_id, policy_started_at, decision, metadata):
+                result = self._audit_write_failed_result(call)
                 self._observe_result(result)
                 return result
         if not self._audit(
@@ -399,6 +462,15 @@ class AgentRuntime:
             result = ToolResult(tool_call_id=call.tool_call_id, status="denied", error=decision.reason, run_id=call.run_id)
             if not self._audit("RuntimeError", call, {"error": decision.reason}):
                 result = self._audit_write_failed_result(call)
+            self._finish_tool_trace_span(
+                call,
+                span_started_at,
+                metadata,
+                status=result.status,
+                decision=decision.decision,
+                reason=decision.reason,
+                error=decision.reason,
+            )
             self._observe_result(result)
             return result
 
@@ -408,6 +480,28 @@ class AgentRuntime:
                 result = self._audit_write_failed_result(call)
                 self._observe_result(result)
                 return result
+            approval_span_id = f"span_{uuid4().hex}"
+            approval_started_at = perf_counter()
+            approval_risk_level = self.registry.get(tool_name).risk_level
+            if self._tracing_enabled():
+                if not self._audit_trace_span_for_call(
+                    "TraceSpanStarted",
+                    call,
+                    approval_span_id,
+                    {
+                        "span_kind": "approval_gate",
+                        "parent_span_id": call.span_id,
+                        "started_at": utc_now(),
+                        "status": "started",
+                        "rule_id": decision.rule_id,
+                        "risk_level": approval_risk_level,
+                        **metadata,
+                    },
+                    environment=environment,
+                ):
+                    result = self._audit_write_failed_result(call)
+                    self._observe_result(result)
+                    return result
             approval = self.approval_provider.request(
                 ApprovalRequest(
                     approval_id=f"appr_{uuid4().hex}",
@@ -419,7 +513,7 @@ class AgentRuntime:
                     reason=decision.reason,
                     input_summary=call.input,
                     policy_rule_id=decision.rule_id,
-                    risk_level=self.registry.get(tool_name).risk_level,
+                    risk_level=approval_risk_level,
                 )
             )
             approval_reason = "approval.timeout" if approval.timed_out else approval.reason
@@ -427,6 +521,30 @@ class AgentRuntime:
                 result = self._audit_write_failed_result(call)
                 self._observe_result(result)
                 return result
+            if self._tracing_enabled():
+                approval_status = "timeout" if approval.timed_out else "approved" if approval.approved else "rejected"
+                if not self._audit_trace_span_for_call(
+                    "TraceSpanFinished",
+                    call,
+                    approval_span_id,
+                    {
+                        "span_kind": "approval_gate",
+                        "parent_span_id": call.span_id,
+                        "finished_at": utc_now(),
+                        "duration_ms": int((perf_counter() - approval_started_at) * 1000),
+                        "status": approval_status,
+                        "approved": approval.approved,
+                        "reason": approval_reason,
+                        "timed_out": approval.timed_out,
+                        "rule_id": decision.rule_id,
+                        "risk_level": approval_risk_level,
+                        **metadata,
+                    },
+                    environment=environment,
+                ):
+                    result = self._audit_write_failed_result(call)
+                    self._observe_result(result)
+                    return result
             if not approval.approved:
                 error = "approval.timeout" if approval.timed_out else "approval_rejected"
                 result = ToolResult(
@@ -435,23 +553,15 @@ class AgentRuntime:
                     error=error,
                     run_id=call.run_id,
                 )
-                self._observe_result(result)
-                return result
-
-        span_started_at = perf_counter()
-        if self._tracing_enabled():
-            if not self._audit(
-                "TraceSpanStarted",
-                call,
-                {
-                    "span_kind": "tool_call",
-                    "started_at": call.requested_at,
-                    "status": "started",
-                    **metadata,
-                },
-                environment=environment,
-            ):
-                result = self._audit_write_failed_result(call)
+                self._finish_tool_trace_span(
+                    call,
+                    span_started_at,
+                    metadata,
+                    status=result.status,
+                    decision=decision.decision,
+                    reason=approval_reason,
+                    error=error,
+                )
                 self._observe_result(result)
                 return result
 
@@ -478,7 +588,44 @@ class AgentRuntime:
                     result = self._audit_write_failed_result(call)
                     self._observe_result(result)
                     return result
+                sandbox_span_id = f"span_{uuid4().hex}"
+                sandbox_started_at = perf_counter()
+                if self._tracing_enabled():
+                    sandbox_payload = {
+                        "span_kind": "sandbox_execution",
+                        "parent_span_id": call.span_id,
+                        "isolation_level": "strong",
+                        "backend": self.sandbox_executor.backend_name,
+                        "available": self.sandbox_executor.available,
+                        **metadata,
+                    }
+                    if not self._audit_trace_span_for_call(
+                        "TraceSpanStarted",
+                        call,
+                        sandbox_span_id,
+                        {"started_at": utc_now(), "status": "started", **sandbox_payload},
+                        environment=environment,
+                    ):
+                        result = self._audit_write_failed_result(call)
+                        self._observe_result(result)
+                        return result
                 output = self._execute_sandboxed_command_tool(tool_name)
+                if self._tracing_enabled():
+                    if not self._audit_trace_span_for_call(
+                        "TraceSpanFinished",
+                        call,
+                        sandbox_span_id,
+                        {
+                            "finished_at": utc_now(),
+                            "duration_ms": int((perf_counter() - sandbox_started_at) * 1000),
+                            "status": "success",
+                            **sandbox_payload,
+                        },
+                        environment=environment,
+                    ):
+                        result = self._audit_write_failed_result(call)
+                        self._observe_result(result)
+                        return result
             elif definition.executor_kind == "subprocess":
                 output = self._execute_command_tool(tool_name)
             else:
@@ -504,6 +651,9 @@ class AgentRuntime:
                     "finished_at": utc_now(),
                     "duration_ms": int((perf_counter() - span_started_at) * 1000),
                     "status": result.status,
+                    "decision": decision.decision,
+                    "reason": decision.reason,
+                    "audit_status": "committed",
                     **metadata,
                 },
                 environment=environment,
@@ -551,12 +701,77 @@ class AgentRuntime:
                     "finished_at": utc_now(),
                     "duration_ms": int((perf_counter() - span_started_at) * 1000),
                     "status": result.status,
+                    "error": error_code,
+                    "audit_status": "committed",
                     **metadata,
                 },
                 environment=call.environment,
             )
         self._observe_result(result)
         return result
+
+    def _finish_tool_trace_span(
+        self,
+        call: ToolCall,
+        span_started_at: float,
+        metadata: dict[str, Any],
+        status: str,
+        decision: str | None = None,
+        reason: str | None = None,
+        error: str | None = None,
+    ) -> bool:
+        if not self._tracing_enabled():
+            return True
+        payload: dict[str, Any] = {
+            "span_kind": "tool_call",
+            "finished_at": utc_now(),
+            "duration_ms": int((perf_counter() - span_started_at) * 1000),
+            "status": status,
+            "audit_status": "committed",
+            **metadata,
+        }
+        if decision is not None:
+            payload["decision"] = decision
+        if reason is not None:
+            payload["reason"] = reason
+        if error is not None:
+            payload["error"] = error
+        return self._audit("TraceSpanFinished", call, payload, environment=call.environment)
+
+    def _finish_policy_trace_span(
+        self,
+        call: ToolCall,
+        policy_span_id: str,
+        policy_started_at: float,
+        decision: Any,
+        metadata: dict[str, Any],
+        status: str | None = None,
+        error: str | None = None,
+    ) -> bool:
+        decision_value = "deny" if error is not None else decision.decision
+        payload: dict[str, Any] = {
+            "span_kind": "policy_evaluation",
+            "parent_span_id": call.span_id,
+            "finished_at": utc_now(),
+            "duration_ms": int((perf_counter() - policy_started_at) * 1000),
+            "status": status or decision.decision,
+            "decision": decision_value,
+            "reason": error or decision.reason,
+            "rule_id": decision.rule_id,
+            "capability": decision.capability,
+            "environment": decision.environment,
+            "policy_version": self.config.get("version", 1),
+            **metadata,
+        }
+        if error is not None:
+            payload["error"] = error
+        return self._audit_trace_span_for_call(
+            "TraceSpanFinished",
+            call,
+            policy_span_id,
+            payload,
+            environment=call.environment,
+        )
 
     def _audit(
         self,
@@ -573,6 +788,33 @@ class AgentRuntime:
                     tool_call_id=call.tool_call_id,
                     trace_id=call.trace_id,
                     span_id=call.span_id,
+                    tool_name=call.tool_name,
+                    payload=payload,
+                )
+            )
+            self._audit_event_types.append(event_type)
+            return True
+        except Exception:
+            fail_closed = self._audit_failure_strategy(environment or call.environment) == "fail_closed"
+            self._observe_audit_failure(fail_closed)
+            return not fail_closed
+
+    def _audit_trace_span_for_call(
+        self,
+        event_type: str,
+        call: ToolCall,
+        span_id: str,
+        payload: dict[str, Any],
+        environment: str | None = None,
+    ) -> bool:
+        try:
+            self.audit_sink.write(
+                AuditEvent(
+                    event_type=event_type,
+                    run_id=call.run_id,
+                    tool_call_id=call.tool_call_id,
+                    trace_id=call.trace_id,
+                    span_id=span_id,
                     tool_name=call.tool_name,
                     payload=payload,
                 )
