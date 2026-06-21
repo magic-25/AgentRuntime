@@ -24,7 +24,13 @@ from agent_runtime.core.models import (
 )
 from agent_runtime.core.registry import ToolRegistry
 from agent_runtime.execution.in_process import InProcessExecutor
-from agent_runtime.execution.sandbox import SandboxCommandSpec, SandboxExecutor, SandboxUnavailableError, UnavailableSandboxExecutor
+from agent_runtime.execution.sandbox import (
+    SandboxCommandSpec,
+    SandboxExecutor,
+    SandboxUnavailableError,
+    SandboxViolationError,
+    UnavailableSandboxExecutor,
+)
 from agent_runtime.execution.subprocess import SubprocessExecutor
 from agent_runtime.guard.redaction import redact_secrets
 from agent_runtime.policy.engine import PolicyEngine
@@ -106,12 +112,22 @@ class AgentRuntime:
     ) -> RegisteredAgent:
         normalized = self._normalize_agent_metadata(agent_id, metadata, environment)
         self._audit_event_cursor = len(self._audit_event_types)
-        self._audit_agent_event(
+        registration_audit_ok = self._audit_agent_event(
             "AgentRegistered",
             agent_id,
             {"actor": actor, "environment": environment, "metadata": normalized.to_dict()},
+            environment=environment,
         )
-        return RegisteredAgent(self, agent_id, agent, actor, environment, normalized, direct_tools=direct_tools)
+        return RegisteredAgent(
+            self,
+            agent_id,
+            agent,
+            actor,
+            environment,
+            normalized,
+            direct_tools=direct_tools,
+            registration_audit_ok=registration_audit_ok,
+        )
 
     def run_agent(
         self,
@@ -560,6 +576,15 @@ class AgentRuntime:
                 output = self.executor.execute(self.registry.callable_for(tool_name), input)
         except subprocess.TimeoutExpired as error:
             return self._execution_error(call, "executor.timeout", str(error), span_started_at, metadata)
+        except SandboxViolationError as error:
+            return self._execution_error(
+                call,
+                _sandbox_violation_code(error),
+                str(error),
+                span_started_at,
+                metadata,
+                status="denied",
+            )
         except SandboxUnavailableError as error:
             return self._execution_error(call, "sandbox.unavailable", str(error), span_started_at, metadata)
         except Exception as error:
@@ -754,7 +779,13 @@ class AgentRuntime:
             self._observe_audit_failure(fail_closed)
             return not fail_closed
 
-    def _audit_agent_event(self, event_type: str, agent_id: str, payload: dict[str, Any]) -> bool:
+    def _audit_agent_event(
+        self,
+        event_type: str,
+        agent_id: str,
+        payload: dict[str, Any],
+        environment: str | None = None,
+    ) -> bool:
         try:
             self.audit_sink.write(
                 AuditEvent(
@@ -766,8 +797,9 @@ class AgentRuntime:
             self._audit_event_types.append(event_type)
             return True
         except Exception:
-            self._observe_audit_failure(fail_closed=False)
-            return True
+            fail_closed = self._audit_failure_strategy(environment or str(payload.get("environment", "prod"))) == "fail_closed"
+            self._observe_audit_failure(fail_closed=fail_closed)
+            return not fail_closed
 
     def _audit_agent_trace_span(
         self,
@@ -776,6 +808,7 @@ class AgentRuntime:
         trace_id: str,
         span_id: str,
         payload: dict[str, Any],
+        environment: str | None = None,
     ) -> bool:
         try:
             self.audit_sink.write(
@@ -790,8 +823,9 @@ class AgentRuntime:
             self._audit_event_types.append(event_type)
             return True
         except Exception:
-            self._observe_audit_failure(fail_closed=False)
-            return True
+            fail_closed = self._audit_failure_strategy(environment or str(payload.get("environment", "prod"))) == "fail_closed"
+            self._observe_audit_failure(fail_closed=fail_closed)
+            return not fail_closed
 
     def _audit_event_types_since_last_read(self) -> list[str]:
         return self._audit_event_types[self._audit_event_cursor :]
@@ -863,3 +897,7 @@ class AgentRuntime:
         if environment == "prod" and definition.executor_kind == "subprocess" and definition.risk_level == "high":
             return "sandbox.required"
         return None
+
+
+def _sandbox_violation_code(error: SandboxViolationError) -> str:
+    return str(error).split(":", 1)[0] or "sandbox.violation"

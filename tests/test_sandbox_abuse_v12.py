@@ -76,7 +76,5 @@ def test_container_backend_denies_network_attempt_by_default(tmp_path):
         network_access=True,
     )
 
-    result = backend.execute(spec)
-
-    assert result.exit_code == 126
-    assert "sandbox.network_denied" in result.stderr
+    with pytest.raises(SandboxViolationError, match="sandbox.network_denied"):
+        backend.execute(spec)

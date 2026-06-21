@@ -11,7 +11,6 @@ from agent_runtime.execution.sandbox import (
     SandboxExecutionPlan,
     SandboxExecutor,
     SandboxUnavailableError,
-    SandboxViolationError,
     build_sandbox_execution_plan,
 )
 from agent_runtime_contrib.packs.base import PackMetadata
@@ -48,11 +47,7 @@ class DockerSandboxBackend(SandboxExecutor):
         return build_sandbox_execution_plan(spec)
 
     def execute(self, spec: SandboxCommandSpec) -> ProcessResult:
-        try:
-            plan = self.build_plan(spec)
-        except SandboxViolationError as error:
-            return ProcessResult(exit_code=126, stdout="", stderr=str(error))
-
+        plan = self.build_plan(spec)
         docker_argv = self._build_docker_argv(plan)
         timeout_seconds = max(1, int((plan.timeout_ms + 999) / 1000))
         try:

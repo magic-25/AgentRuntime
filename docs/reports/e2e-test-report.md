@@ -12,7 +12,7 @@
 核心证据：
 
 - E2E 自动化集合：`8 passed in 13.31s`
-- 全量回归集合：`207 passed in 42.12s`
+- 全量回归集合：`208 passed in 39.72s`
 - CI 门禁：提交后由 GitHub Actions 运行 compile、lint、type check、full tests、E2E smoke、certification、adapter replay 和 sandbox conformance
 
 本报告覆盖七类端到端路径：
@@ -223,7 +223,7 @@ PYTHONPATH=src python -m pytest tests/e2e/test_complete_report_e2e.py -q
 验证点包括：
 
 - secret env 不进入容器 stdout 或 audit。
-- `network_access=True` 被 sandbox plan 拒绝，返回 `sandbox.network_denied`。
+- `network_access=True` 被 sandbox plan 在执行前拒绝，runtime 返回 `status=denied` 和 `sandbox.network_denied`。
 - read-only workspace 写入失败，宿主目录不出现 `blocked.txt`。
 - timeout 返回 `exit_code=124` 和 `docker.timeout`。
 - audit 中保留 `SandboxEnforced` 和 trace evidence。
@@ -377,7 +377,7 @@ PYTHONPATH=src python -m pytest -q
 **输出结果**
 
 ```text
-207 passed in 42.12s
+208 passed in 39.72s
 ```
 
 **输出解释**

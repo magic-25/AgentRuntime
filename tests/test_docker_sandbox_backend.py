@@ -2,7 +2,7 @@ import subprocess
 
 import pytest
 
-from agent_runtime.execution.sandbox import SandboxCommandSpec, SandboxUnavailableError
+from agent_runtime.execution.sandbox import SandboxCommandSpec, SandboxUnavailableError, SandboxViolationError
 from agent_runtime_contrib.packs.sandbox.docker import DockerSandboxBackend
 
 
@@ -59,10 +59,8 @@ def test_docker_backend_denies_network_before_calling_docker(tmp_path):
     runner = RecordingDockerRun()
     backend = DockerSandboxBackend(run=runner)
 
-    result = backend.execute(SandboxCommandSpec(argv=["curl", "https://example.com"], cwd=str(tmp_path), network_access=True))
-
-    assert result.exit_code == 126
-    assert "network.denied" in result.stderr
+    with pytest.raises(SandboxViolationError, match="network.denied"):
+        backend.execute(SandboxCommandSpec(argv=["curl", "https://example.com"], cwd=str(tmp_path), network_access=True))
     assert runner.calls == []
 
 

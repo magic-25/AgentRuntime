@@ -5,7 +5,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
 
-from agent_runtime.execution.sandbox import SandboxCommandSpec, SandboxUnavailableError
+from agent_runtime.execution.sandbox import SandboxCommandSpec, SandboxUnavailableError, SandboxViolationError
 from agent_runtime_contrib.packs.sandbox.container import ContainerSandboxBackend
 from agent_runtime_contrib.packs.sandbox.docker import DockerSandboxBackend
 from agent_runtime_contrib.packs.sandbox.remote import RemoteSandboxBackend
@@ -92,18 +92,22 @@ def _run_container_abuse_checks(backend: ContainerSandboxBackend, failure_reason
         out.mkdir()
 
         checks.append("abuse.path_traversal")
-        if backend.execute(SandboxCommandSpec(argv=["python", "-V"], cwd=str(repo), read_paths=[str(repo / "..")])).exit_code == 0:
+        if _sandbox_request_was_allowed(
+            backend,
+            SandboxCommandSpec(argv=["python", "-V"], cwd=str(repo), read_paths=[str(repo / "..")]),
+        ):
             failure_reasons.append("path_traversal.allowed")
 
         checks.append("abuse.credential_path")
-        credential_result = backend.execute(
-            SandboxCommandSpec(argv=["python", "-V"], cwd=str(repo), read_paths=[str(Path.home() / ".ssh" / "id_rsa")])
-        )
-        if credential_result.exit_code == 0:
+        if _sandbox_request_was_allowed(
+            backend,
+            SandboxCommandSpec(argv=["python", "-V"], cwd=str(repo), read_paths=[str(Path.home() / ".ssh" / "id_rsa")]),
+        ):
             failure_reasons.append("credential_path.allowed")
 
         checks.append("abuse.network_attempt")
-        network_result = backend.execute(
+        if _sandbox_request_was_allowed(
+            backend,
             SandboxCommandSpec(
                 argv=["curl", "https://example.com"],
                 cwd=str(repo),
@@ -111,8 +115,7 @@ def _run_container_abuse_checks(backend: ContainerSandboxBackend, failure_reason
                 write_paths=[str(out)],
                 network_access=True,
             )
-        )
-        if network_result.exit_code == 0:
+        ):
             failure_reasons.append("network.allowed")
 
         checks.append("abuse.output_flood")
@@ -135,11 +138,20 @@ def _run_docker_contract_checks(backend: DockerSandboxBackend, failure_reasons: 
     checks = ["docker.real_execution_contract"]
     with TemporaryDirectory() as raw_tmp:
         root = Path(raw_tmp)
-        network_result = backend.execute(SandboxCommandSpec(argv=["curl", "https://example.com"], cwd=str(root), network_access=True))
         checks.append("abuse.network_attempt")
-        if network_result.exit_code == 0:
+        if _sandbox_request_was_allowed(
+            backend,
+            SandboxCommandSpec(argv=["curl", "https://example.com"], cwd=str(root), network_access=True),
+        ):
             failure_reasons.append("network.allowed")
     return checks
+
+
+def _sandbox_request_was_allowed(backend: Any, spec: SandboxCommandSpec) -> bool:
+    try:
+        return backend.execute(spec).exit_code == 0
+    except SandboxViolationError:
+        return False
 
 
 def _public_backend_name(backend: Any) -> str:

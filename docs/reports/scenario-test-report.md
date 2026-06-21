@@ -35,7 +35,7 @@ tests/test_scenario_based_user_guide.py ...........                      [ 97%]
 | 项目 | 值 |
 | --- | --- |
 | 测试文件 | `tests/test_scenario_based_user_guide.py` |
-| 原始输出 | `.agent-runtime/test-report-2026-06-17/scenario-based-user-guide.txt` |
+| 原始输出 | `.agent-runtime/test-report-2026-06-21/scenario-based-user-guide.txt` |
 | 执行命令 | `python -m pytest tests/test_scenario_based_user_guide.py -q` |
 | 用例数量 | 11 |
 | 结果 | 11 passed |
