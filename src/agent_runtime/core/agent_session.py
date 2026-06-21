@@ -20,7 +20,6 @@ class RegisteredAgent:
         actor: dict[str, Any],
         environment: str,
         metadata: AgentMetadata,
-        direct_tools: dict[str, Any] | None = None,
         registration_audit_ok: bool = True,
     ) -> None:
         self.runtime = runtime
@@ -29,7 +28,6 @@ class RegisteredAgent:
         self.actor = actor
         self.environment = environment
         self.metadata = metadata
-        self.direct_tools = direct_tools or {}
         self.registration_audit_ok = registration_audit_ok
 
     def run(self, prompt: str) -> Any:
@@ -65,6 +63,9 @@ class RegisteredAgent:
             "agent_id": self.agent_id,
             "trace_id": trace_id,
             "agent_span_id": span_id,
+            "capabilities": list(self.metadata.capabilities),
+            "runtime_profile": self.metadata.runtime_profile.to_dict(),
+            "tool_call_count": 0,
         }
         try:
             self.agent.runtime = self.runtime
@@ -170,6 +171,9 @@ class RegisteredAgent:
             "agent_id": self.agent_id,
             "trace_id": trace_id,
             "agent_span_id": span_id,
+            "capabilities": list(self.metadata.capabilities),
+            "runtime_profile": self.metadata.runtime_profile.to_dict(),
+            "tool_call_count": 0,
         }
         try:
             self.agent.runtime = self.runtime

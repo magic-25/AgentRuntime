@@ -95,12 +95,12 @@ python -m pytest -q
 **输出结果**
 
 ```text
-208 passed in 39.72s
+219 passed in 44.72s
 ```
 
 **输出解释**
 
-`208 passed` 表示当前测试套件全部通过，且真实 GLM provider integration、formal agent registry contract、registered agent deny-path、governed agent tracing、complete runtime report、agent run screenshot、run process viewer、complete-report scenario context、JSON beauty view、production incident agent、production incident registration comparison、provider retry/backoff、LangGraph optional framework agent、approval 默认拒绝、agent lifecycle audit fail-closed、sandbox pre-execution denial、sandbox env 预过滤、JSONL audit 本地并发写 hash chain、显式 opt-in Docker sandbox backend preview、Docker backend CLI conformance、adapter payload fixtures、Docker stable candidate gate 和 E2E smoke 都已验证。覆盖范围包括 adapter、audit、policy、sandbox、platform、release manifest、Code/CI pilot、staging pilot、SQLite audit、tracing、11 个基于用户指南场景的 acceptance tests、复杂 production incident agent、未注册 direct execution 与 registered runtime execution 对比、complete runtime report、single-run screenshot、带业务上下文的完整运行过程 HTML、clean wheel install、Docker sandbox runtime/failure paths E2E、run view browser evidence，以及 provider/framework-agent tests。
+`219 passed` 表示当前测试套件全部通过，且真实 GLM provider integration、formal agent registry contract、registered agent deny-path、registered agent capability/profile enforcement、governed agent tracing、complete runtime report、agent run screenshot、run process viewer、complete-report scenario context、JSON beauty view、production incident agent、production incident registration comparison、provider retry/backoff、LangGraph optional framework agent、approval 默认拒绝、agent lifecycle audit fail-closed、policy deny precedence、sandbox pre-execution denial、sandbox env 预过滤、secret-like env deny、Docker env argv 防泄漏、JSONL / SQLite audit 本地并发写 hash chain、显式 opt-in Docker sandbox backend preview、Docker backend CLI conformance、adapter payload fixtures、Docker stable candidate gate 和 E2E smoke 都已验证。覆盖范围包括 adapter、audit、policy、sandbox、platform、release manifest、Code/CI pilot、staging pilot、SQLite audit、tracing、11 个基于用户指南场景的 acceptance tests、复杂 production incident agent、未注册 direct execution 与 registered runtime execution 对比、complete runtime report、single-run screenshot、带业务上下文的完整运行过程 HTML、HTML escaping regression、clean wheel install、Docker sandbox runtime/failure paths E2E、run view browser evidence，以及 provider/framework-agent tests。
 
 **结论**
 
@@ -711,6 +711,10 @@ production incident registration comparison 由 `examples/production_incident_co
 - production incident agent。
 - production incident registration comparison。
 - provider-agent tool-call parsing、GLM optional integration、agent registry contract、registered deny-path、governed agent tracing、retry/backoff、LangGraph optional framework agent 和 secret boundary。
+- registered agent declared capability、`max_tool_calls`、high/critical tool sandbox/approval profile enforcement。
+- policy tool deny 覆盖 broad capability allow 的 precedence。
+- complete report 和 single-run screenshot HTML dynamic value escaping。
+- Docker backend 不在 argv 暴露 env value，且拒绝 secret-like allowlisted env key。
 - SQLite audit。
 - tracing。
 

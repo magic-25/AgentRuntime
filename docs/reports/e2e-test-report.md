@@ -12,7 +12,7 @@
 核心证据：
 
 - E2E 自动化集合：`8 passed in 13.31s`
-- 全量回归集合：`208 passed in 39.72s`
+- 全量回归集合：`219 passed in 44.72s`
 - CI 门禁：提交后由 GitHub Actions 运行 compile、lint、type check、full tests、E2E smoke、certification、adapter replay 和 sandbox conformance
 
 本报告覆盖七类端到端路径：
@@ -243,7 +243,7 @@ PYTHONPATH=src python -m pytest tests/e2e/test_docker_sandbox_failure_paths_e2e.
 
 **输出解释**
 
-`1 passed` 表示当前本地 Docker 环境可用，且 runtime 能把 sandbox failure 作为受治理的 process output 返回并写入 audit/trace。该结果证明 no-network、read-only、env allowlist 和 timeout 的 E2E enforcement 生效，但仍不声明绝对 sandbox escape prevention。
+`1 passed` 表示当前本地 Docker 环境可用，且 sandbox failure 会以 runtime-governed denial / sandbox error evidence 的形式写入 audit/trace，不会静默落回普通 subprocess 或把强隔离失败包装成直接执行成功。该结果证明 no-network、read-only、env allowlist 和 timeout 的 E2E enforcement 生效，但仍不声明绝对 sandbox escape prevention。
 
 **结论**
 
@@ -377,12 +377,12 @@ PYTHONPATH=src python -m pytest -q
 **输出结果**
 
 ```text
-208 passed in 39.72s
+219 passed in 44.72s
 ```
 
 **输出解释**
 
-全量回归包含 unit、integration、contract、scenario、real-agent、provider optional、tracing、complete report、run viewer、sandbox、adapter、platform、pilot 和 E2E smoke。它用于确认新增 E2E 覆盖没有破坏既有 runtime 行为。
+全量回归包含 unit、integration、contract、scenario、real-agent、provider optional、tracing、complete report、run viewer、sandbox、adapter、platform、pilot 和 E2E smoke。它还覆盖 policy precedence、registered agent capability/profile enforcement、HTML escaping、Docker env 防泄漏和 SQLite audit 并发 hash chain。它用于确认新增 E2E 覆盖没有破坏既有 runtime 行为。
 
 **结论**
 

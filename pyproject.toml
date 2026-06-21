@@ -18,6 +18,14 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 
+[project.urls]
+Homepage = "https://github.com/magic-25/AgentRuntime"
+Source = "https://github.com/magic-25/AgentRuntime"
+Issues = "https://github.com/magic-25/AgentRuntime/issues"
+Documentation = "https://github.com/magic-25/AgentRuntime/tree/main/docs"
+Security = "https://github.com/magic-25/AgentRuntime/security"
+Changelog = "https://github.com/magic-25/AgentRuntime/blob/main/CHANGELOG.md"
+
 [project.optional-dependencies]
 contrib-adapters = []
 contrib-sandbox = []
@@ -51,7 +59,7 @@ line-length = 140
 extend-exclude = [".agent-runtime"]
 
 [tool.ruff.lint]
-select = ["E9", "F"]
+select = ["E4", "E7", "E9", "F", "B"]
 
 [tool.pyright]
 include = ["src"]

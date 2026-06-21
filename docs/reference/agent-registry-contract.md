@@ -9,6 +9,8 @@
 
 注册 agent 后，provider 或 framework 仍然可以负责生成 tool call，但工具执行必须进入 `runtime.call_tool()`。
 
+注册路径不接受 direct tool fallback。未注册对比测试可以显式使用 `run_unregistered(..., direct_tools=...)`，但一旦 agent 通过 `register_agent(...)` 纳入 runtime，工具执行、policy、approval、sandbox、audit 和 tracing 都必须由 runtime 处理。
+
 ## Contract
 
 ```python
@@ -96,6 +98,8 @@ assert result.agent_span_id is not None
 | `runtime_profile` | runtime 执行约束 |
 | `lifecycle_events` | runtime 必须记录的 agent lifecycle events |
 
+`capabilities` 不是纯文档字段。注册 agent 运行期间，runtime 会把 agent metadata 中声明的能力和目标 tool 的 required capabilities 做交集校验。metadata 中声明了非空 capabilities 时，未声明能力的 tool call 会被拒绝，并写入 audit / trace evidence。
+
 ## Runtime Profile
 
 | 字段 | 含义 |
@@ -106,6 +110,13 @@ assert result.agent_span_id is not None
 | `network_access` | agent/provider 是否需要网络 |
 | `sandbox_required` | 是否要求 sandbox backend |
 | `approval_required` | 是否要求 approval gate |
+
+`runtime_profile` 是执行约束，不只是展示信息：
+
+- `max_tool_calls` 按单次 registered agent run 的 tool call attempt 计数；超过后 runtime 拒绝后续 tool call，即使前一个 attempt 是 policy deny 或 unknown tool。
+- `sandbox_required=True` 时，高风险或关键风险的 subprocess / command tool 必须使用强隔离 sandbox path；不能回落到普通 subprocess。
+- `approval_required=True` 时，高风险或关键风险 tool 不能只依赖 plain allow policy，必须进入 `require_approval` path 并获得 approval provider 明确批准。
+- 普通低风险业务 tool 可以继续通过 policy / capability 管理，不会因为 profile 启用而被误判为必须 sandbox 或 approval。
 
 ## Lifecycle Events
 
@@ -122,6 +133,8 @@ AgentRunFinished
 ```
 
 如果 policy deny，`ToolExecutionFinished` 不应出现，应该出现 `RuntimeError`，并且 agent 不能回落到 direct execution。
+
+如果 metadata capability 或 runtime profile 拒绝 tool call，也应表现为 governed denial：工具函数不执行，结果为 denied，audit / trace 中记录拒绝原因。
 
 ## Tracing Contract
 

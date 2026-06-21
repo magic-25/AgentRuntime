@@ -19,6 +19,7 @@
 - 新增 E2E 扩展 OPT 产物，覆盖 P0/P1/P2 spec、架构、交互、安全门禁、QA plan 和实现计划。
 - 新增 Runtime Core API 稳定化 OPT 产物，定义通用 agent execution session contract。
 - 新增 `AgentRunRequest` / `AgentRunResult`、`RegisteredAgent.run_session(...)` 和 `AgentRuntime.run_agent(...)`，支持任意 Python agent 输出包装为统一、可审计、可追踪的运行结果，同时保持旧 `run(...)` 兼容。
+- 强化 runtime 安全边界：tool-specific deny 覆盖 broad capability allow，registered agent metadata capabilities 和 runtime profile 参与执行拦截，注册路径移除 direct tool fallback，complete report / screenshot HTML 转义动态值，Docker backend 避免 env value 进入 argv 并拒绝 secret-like allowlisted env key，SQLite audit 本地并发写使用事务保持 hash chain。
 - 更新 README、CONTRIBUTING、SECURITY、docs/user-guide、docs/reports/test-report 和 docs/runbooks/design-partner-runbook，修复 fresh setup、测试证据和安全边界说明漂移。
 - 整理公开文档信息架构：根目录仅保留开源入口文档，报告、runbook、reference、release checklist 和 E2E plan 归入 `docs/`，并新增 `docs/README.md` 索引。
 - 新增 `MANIFEST.in`，发布 sdist 时排除 `tests/`、`.github/`、`docs/` 和 `roles/`，避免源码包混入内部验证材料。

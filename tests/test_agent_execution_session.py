@@ -77,6 +77,24 @@ class FailingAuditSink:
         raise OSError("audit sink unavailable")
 
 
+@dataclass(frozen=True)
+class MultiToolTranscript:
+    status: str
+    tool_results: list[ToolResult] = field(default_factory=list)
+
+
+class MultiToolAgent:
+    def __init__(self, tool_names: list[str]) -> None:
+        self.tool_names = tool_names
+
+    def run(self, prompt: str) -> MultiToolTranscript:
+        results = [
+            self.runtime.call_tool(tool_name, {}, actor=self.actor, environment=self.environment)
+            for tool_name in self.tool_names
+        ]
+        return MultiToolTranscript(status="completed", tool_results=results)
+
+
 def test_agent_run_session_wraps_arbitrary_python_output(tmp_path):
     runtime = _runtime(tmp_path)
     registered = runtime.register_agent(
@@ -205,3 +223,199 @@ def test_agent_run_session_fails_closed_when_lifecycle_audit_write_fails(tmp_pat
     assert result.status == "failed"
     assert result.error == "audit.write_failed"
     assert result.audit_events == []
+
+
+def test_registered_agent_declared_capabilities_are_enforced(tmp_path):
+    runtime = AgentRuntime.from_dict(
+        {
+            "version": 1,
+            "default_decision": "deny",
+            "audit": {"path": str(tmp_path / "capability-audit.jsonl")},
+            "rules": [
+                {"id": "allow-tools", "environment": "dev", "effect": "allow", "capabilities": ["tool.invoke:*"]},
+            ],
+        }
+    )
+    calls = []
+
+    @runtime.tool(name="delete_record")
+    def delete_record() -> str:
+        calls.append("delete_record")
+        return "deleted"
+
+    result = runtime.run_agent(
+        "limited-agent",
+        MultiToolAgent(["delete_record"]),
+        prompt="try delete",
+        actor={"id": "alice"},
+        environment="dev",
+        metadata=AgentMetadata(
+            agent_id="limited-agent",
+            name="Limited Agent",
+            provider="local",
+            framework="plain-python",
+            capabilities=["tool.invoke:echo"],
+            runtime_profile=RuntimeProfile(environment="dev", max_tool_calls=1),
+        ),
+    )
+
+    assert result.tool_results[0].status == "denied"
+    assert result.tool_results[0].error == "agent.capability_denied"
+    assert calls == []
+
+
+def test_registered_agent_max_tool_calls_is_enforced(tmp_path):
+    runtime = AgentRuntime.from_dict(
+        {
+            "version": 1,
+            "default_decision": "deny",
+            "audit": {"path": str(tmp_path / "max-tool-calls-audit.jsonl")},
+            "rules": [
+                {"id": "allow-tools", "environment": "dev", "effect": "allow", "capabilities": ["tool.invoke:*"]},
+            ],
+        }
+    )
+    calls = []
+
+    @runtime.tool(name="first")
+    def first() -> str:
+        calls.append("first")
+        return "first"
+
+    @runtime.tool(name="second")
+    def second() -> str:
+        calls.append("second")
+        return "second"
+
+    result = runtime.run_agent(
+        "one-call-agent",
+        MultiToolAgent(["first", "second"]),
+        prompt="call twice",
+        actor={"id": "alice"},
+        environment="dev",
+        metadata=AgentMetadata(
+            agent_id="one-call-agent",
+            name="One Call Agent",
+            provider="local",
+            framework="plain-python",
+            capabilities=["tool.invoke:first", "tool.invoke:second"],
+            runtime_profile=RuntimeProfile(environment="dev", max_tool_calls=1),
+        ),
+    )
+
+    assert [tool.status for tool in result.tool_results] == ["success", "denied"]
+    assert result.tool_results[1].error == "agent.max_tool_calls_exceeded"
+    assert calls == ["first"]
+
+
+def test_registered_agent_max_tool_calls_counts_denied_attempts(tmp_path):
+    runtime = AgentRuntime.from_dict(
+        {
+            "version": 1,
+            "default_decision": "deny",
+            "audit": {"path": str(tmp_path / "max-tool-calls-denied-audit.jsonl")},
+            "rules": [{"id": "allow-tools", "environment": "dev", "effect": "allow", "capabilities": ["tool.invoke:*"]}],
+        }
+    )
+    calls = []
+
+    @runtime.tool(name="first")
+    def first() -> str:
+        calls.append("first")
+        return "first"
+
+    result = runtime.run_agent(
+        "one-attempt-agent",
+        MultiToolAgent(["missing", "first"]),
+        prompt="call twice",
+        actor={"id": "alice"},
+        environment="dev",
+        metadata=AgentMetadata(
+            agent_id="one-attempt-agent",
+            name="One Attempt Agent",
+            provider="local",
+            framework="plain-python",
+            capabilities=["tool.invoke:first"],
+            runtime_profile=RuntimeProfile(environment="dev", max_tool_calls=1),
+        ),
+    )
+
+    assert [tool.status for tool in result.tool_results] == ["denied", "denied"]
+    assert result.tool_results[0].error == "tool.unknown"
+    assert result.tool_results[1].error == "agent.max_tool_calls_exceeded"
+    assert calls == []
+
+
+def test_registered_agent_sandbox_required_profile_is_enforced(tmp_path):
+    runtime = AgentRuntime.from_dict(
+        {
+            "version": 1,
+            "default_decision": "deny",
+            "audit": {"path": str(tmp_path / "sandbox-required-audit.jsonl")},
+            "rules": [
+                {"id": "allow-tools", "environment": "dev", "effect": "allow", "capabilities": ["tool.invoke:*"]},
+                {"id": "allow-python", "environment": "dev", "effect": "allow", "capabilities": ["command.execute:python"]},
+            ],
+        }
+    )
+
+    runtime.command_tool(
+        name="dangerous_write",
+        argv=["python", "-c", "print('written')"],
+        cwd=str(tmp_path),
+        risk_level="high",
+        capabilities_required=["tool.invoke:dangerous_write", "command.execute:python"],
+    )
+
+    result = runtime.run_agent(
+        "sandbox-required-agent",
+        MultiToolAgent(["dangerous_write"]),
+        prompt="echo",
+        actor={"id": "alice"},
+        environment="dev",
+        metadata=AgentMetadata(
+            agent_id="sandbox-required-agent",
+            name="Sandbox Required Agent",
+            provider="local",
+            framework="plain-python",
+            capabilities=["tool.invoke:dangerous_write", "command.execute:python"],
+            runtime_profile=RuntimeProfile(environment="dev", max_tool_calls=1, sandbox_required=True),
+        ),
+    )
+
+    assert result.tool_results[0].status == "denied"
+    assert result.tool_results[0].error == "agent.sandbox_required"
+
+
+def test_registered_agent_approval_required_profile_is_enforced(tmp_path):
+    runtime = AgentRuntime.from_dict(
+        {
+            "version": 1,
+            "default_decision": "deny",
+            "audit": {"path": str(tmp_path / "approval-required-audit.jsonl")},
+            "rules": [{"id": "allow-tools", "environment": "dev", "effect": "allow", "capabilities": ["tool.invoke:*"]}],
+        }
+    )
+
+    @runtime.tool(name="restart_service", risk_level="high")
+    def restart_service() -> str:
+        return "restarted"
+
+    result = runtime.run_agent(
+        "approval-required-agent",
+        MultiToolAgent(["restart_service"]),
+        prompt="echo",
+        actor={"id": "alice"},
+        environment="dev",
+        metadata=AgentMetadata(
+            agent_id="approval-required-agent",
+            name="Approval Required Agent",
+            provider="local",
+            framework="plain-python",
+            capabilities=["tool.invoke:restart_service"],
+            runtime_profile=RuntimeProfile(environment="dev", max_tool_calls=1, approval_required=True),
+        ),
+    )
+
+    assert result.tool_results[0].status == "denied"
+    assert result.tool_results[0].error == "agent.approval_required"

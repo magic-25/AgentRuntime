@@ -49,8 +49,11 @@ def test_docker_backend_runs_command_with_strong_default_flags(tmp_path):
     assert f"{tmp_path}:/workspace:ro" in docker_argv
     assert f"{out_dir}:/workspace/out:rw" in docker_argv
     assert "--env" in docker_argv
-    assert "VISIBLE=1" in docker_argv
+    assert "VISIBLE" in docker_argv
+    assert "VISIBLE=1" not in docker_argv
     assert "SECRET=nope" not in docker_argv
+    assert kwargs["env"]["VISIBLE"] == "1"
+    assert "SECRET" not in kwargs["env"]
     assert docker_argv[-4:] == ["python:3.12-slim", "python", "-c", "print('hello')"]
     assert kwargs["timeout"] == 30
 
@@ -61,6 +64,22 @@ def test_docker_backend_denies_network_before_calling_docker(tmp_path):
 
     with pytest.raises(SandboxViolationError, match="network.denied"):
         backend.execute(SandboxCommandSpec(argv=["curl", "https://example.com"], cwd=str(tmp_path), network_access=True))
+    assert runner.calls == []
+
+
+def test_docker_backend_denies_secret_like_allowlisted_env_before_calling_docker(tmp_path):
+    runner = RecordingDockerRun()
+    backend = DockerSandboxBackend(run=runner)
+
+    with pytest.raises(SandboxViolationError, match="env.secret_denied"):
+        backend.execute(
+            SandboxCommandSpec(
+                argv=["python", "-V"],
+                cwd=str(tmp_path),
+                env={"API_KEY": "secret"},
+                env_allowlist=["API_KEY"],
+            )
+        )
     assert runner.calls == []
 
 

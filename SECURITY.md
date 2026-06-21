@@ -34,7 +34,11 @@ Agent Runtime 当前处于 **Technical Preview**，下一门禁是 **Design Part
 
 请不要在公开 issue 中披露可利用细节、凭证、客户数据、生产路径或完整攻击步骤。
 
-优先使用 GitHub private vulnerability reporting。若仓库尚未启用该功能，请创建一个不含敏感细节的公开 issue，请求维护者提供私下沟通渠道。公开 issue 中只写影响范围类别，例如：
+优先使用 GitHub private vulnerability reporting：
+
+`https://github.com/magic-25/AgentRuntime/security/advisories/new`
+
+若该入口临时不可用，请创建一个不含敏感细节的公开 issue，请求维护者提供私下沟通渠道。公开 issue 中只写影响范围类别，例如：
 
 - policy bypass。
 - approval bypass。
@@ -62,13 +66,19 @@ Agent Runtime 当前处于 **Technical Preview**，下一门禁是 **Design Part
 
 `require_approval` 没有显式 approval provider 时默认 reject。测试或 demo 可以显式注入静态 approval provider，但生产配置不应依赖默认批准。
 
+policy evaluation 使用保守 precedence：tool-specific deny 会覆盖 broad capability allow；unknown tool 和 unknown capability 默认 deny；policy hook exception 默认 deny。
+
+注册 agent 的 `AgentMetadata.capabilities` 和 `RuntimeProfile` 会参与 runtime enforcement。注册路径不接受 direct tool fallback；未声明能力、超过 `max_tool_calls`、违反高风险 tool 的 sandbox / approval profile 都会被 runtime 拒绝并写入 audit / trace。
+
 `subprocess` executor 不是强安全沙箱。它只提供独立进程、cwd、env allowlist、timeout、stdout/stderr 捕获和输出截断。
 
 高风险 prod command tool 必须使用 `sandboxed_command_tool` 和宿主注入的强隔离 sandbox backend；backend 不可用时 runtime 返回 `sandbox.unavailable`，不会退回普通 subprocess。
 
-sandboxed command 的环境变量会在进入 sandbox backend 前按 `env_allowlist` 裁剪，backend 不应接触未授权 secret。
+sandboxed command 的环境变量会在进入 sandbox backend 前按 `env_allowlist` 裁剪，backend 不应接触未授权 secret。secret-like key 即使被误放进 allowlist，也会被拒绝。Docker backend 传递 env 时不会把 `KEY=value` 放入命令行 argv，避免通过进程列表泄漏值。
 
-JSONL / SQLite audit sink 的 hash chain 用于检测本地审计链篡改。JSONL sink 会使用本地 advisory file lock 串行化单节点写入，避免并发写破坏 hash chain；这不等同于分布式锁、外部 WORM 或合规归档。需要更强追责时，应接入宿主的 append-only sink。
+complete report 和 single-run screenshot HTML 会转义 prompt、provider output、tool result、policy/audit/trace 等动态值。公开 artifact 仍不应包含密钥、客户数据、原始 provider secret payload 或生产敏感信息。
+
+JSONL / SQLite audit sink 的 hash chain 用于检测本地审计链篡改。JSONL sink 会使用本地 advisory file lock 串行化单节点写入；SQLite sink 会使用写事务串行化本地并发写入，避免并发写破坏 hash chain；这不等同于分布式锁、外部 WORM 或合规归档。需要更强追责时，应接入宿主的 append-only sink。
 
 当前 contrib `ContainerSandboxBackend` 是 container execution plan simulation，用于 contract 和 abuse check，不执行真实 Docker container。
 

@@ -18,8 +18,11 @@ technical, and evidence-oriented.
 
 ## Reporting
 
-For general conduct concerns, contact the maintainers through the repository's
-private maintainer channel when available.
+For general conduct concerns, contact the maintainers through a private
+maintainer channel when available. If no private channel is available, open a
+minimal public issue titled "Maintainer contact request" and do not include
+personal details, screenshots, private messages, or security-sensitive content
+in the public thread.
 
 For security issues, follow [SECURITY.md](SECURITY.md) instead of opening a
 public issue with exploit details.

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import shutil
+from html import escape
 from pathlib import Path
 from typing import Any
 
@@ -247,22 +248,30 @@ def _render_html(snapshot: dict[str, Any]) -> str:
   <h1>Provider Agent Run</h1>
   <div class="subtitle">单次真实 registered agent 在 Agent Runtime 中运行产生的截图</div>
   <section class="card">
-    <div class="row"><div class="label">Prompt</div><div><code>{snapshot["prompt"]}</code></div></div>
-    <div class="row"><div class="label">Provider</div><div>{snapshot["agent"]["provider"]} / {snapshot["agent"]["framework"]}</div></div>
-    <div class="row"><div class="label">Decisions</div><div><code>{' -> '.join(snapshot["transcript"]["decisions"])}</code></div></div>
-    <div class="row"><div class="label">Tool call</div><div><code>{snapshot["tool_call"]["name"]}</code> {json.dumps(snapshot["tool_call"]["arguments"], ensure_ascii=False)}</div></div>
-    <div class="row"><div class="label">Tool result</div><div class="ok">{tool_result["status"]} {json.dumps(tool_result["output"], ensure_ascii=False)}</div></div>
+    <div class="row"><div class="label">Prompt</div><div><code>{_html_text(snapshot["prompt"])}</code></div></div>
+    <div class="row"><div class="label">Provider</div><div>{_html_text(snapshot["agent"]["provider"])} / {_html_text(snapshot["agent"]["framework"])}</div></div>
+    <div class="row"><div class="label">Decisions</div><div><code>{_html_text(' -> '.join(snapshot["transcript"]["decisions"]))}</code></div></div>
+    <div class="row"><div class="label">Tool call</div><div><code>{_html_text(snapshot["tool_call"]["name"])}</code> {_html_json(snapshot["tool_call"]["arguments"])}</div></div>
+    <div class="row"><div class="label">Tool result</div><div class="ok">{_html_text(tool_result["status"])} {_html_json(tool_result["output"])}</div></div>
   </section>
   <section class="card">
-    <div class="row"><div class="label">Policy</div><div><code>{governance["policy"]["decision"]}</code> / {governance["policy"]["reason"]}</div></div>
-    <div class="row"><div class="label">Audit</div><div><code>{governance["audit"]["status"]}</code>, {governance["audit"]["event_count"]} events</div></div>
-    <div class="row"><div class="label">Trace id</div><div><code>{snapshot["trace"]["trace_id"]}</code></div></div>
-    <div class="row"><div class="label">Trace contains</div><div><code>{json.dumps(snapshot["trace"]["contains"], ensure_ascii=False)}</code></div></div>
+    <div class="row"><div class="label">Policy</div><div><code>{_html_text(governance["policy"]["decision"])}</code> / {_html_text(governance["policy"]["reason"])}</div></div>
+    <div class="row"><div class="label">Audit</div><div><code>{_html_text(governance["audit"]["status"])}</code>, {_html_text(governance["audit"]["event_count"])} events</div></div>
+    <div class="row"><div class="label">Trace id</div><div><code>{_html_text(snapshot["trace"]["trace_id"])}</code></div></div>
+    <div class="row"><div class="label">Trace contains</div><div><code>{_html_json(snapshot["trace"]["contains"])}</code></div></div>
   </section>
 </main>
 </body>
 </html>
 """
+
+
+def _html_text(value: Any) -> str:
+    return escape("n/a" if value is None else str(value), quote=True)
+
+
+def _html_json(value: Any) -> str:
+    return _html_text(json.dumps(value, ensure_ascii=False))
 
 
 def _render_png(snapshot: dict[str, Any], path: Path) -> None:

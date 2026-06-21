@@ -19,28 +19,34 @@ class SQLiteAuditSink:
     def write(self, event: AuditEvent | dict[str, Any]) -> None:
         payload = event.to_dict() if isinstance(event, AuditEvent) else event
         payload = redact_secrets(payload)
-        with sqlite3.connect(self.path) as connection:
-            payload = attach_event_hash(payload, self._last_event_hash(connection))
-            connection.execute(
-                """
-                insert into audit_events(
-                    event_type, run_id, tool_call_id, timestamp, trace_id, tool_name,
-                    event_hash, previous_event_hash, payload_json
+        with sqlite3.connect(self.path, isolation_level=None) as connection:
+            connection.execute("begin immediate")
+            try:
+                payload = attach_event_hash(payload, self._last_event_hash(connection))
+                connection.execute(
+                    """
+                    insert into audit_events(
+                        event_type, run_id, tool_call_id, timestamp, trace_id, tool_name,
+                        event_hash, previous_event_hash, payload_json
+                    )
+                    values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        payload.get("event_type"),
+                        payload.get("run_id"),
+                        payload.get("tool_call_id"),
+                        payload.get("timestamp"),
+                        payload.get("trace_id"),
+                        payload.get("tool_name"),
+                        payload.get("event_hash"),
+                        payload.get("previous_event_hash"),
+                        json.dumps(payload, ensure_ascii=False, sort_keys=True),
+                    ),
                 )
-                values (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    payload.get("event_type"),
-                    payload.get("run_id"),
-                    payload.get("tool_call_id"),
-                    payload.get("timestamp"),
-                    payload.get("trace_id"),
-                    payload.get("tool_name"),
-                    payload.get("event_hash"),
-                    payload.get("previous_event_hash"),
-                    json.dumps(payload, ensure_ascii=False, sort_keys=True),
-                ),
-            )
+                connection.commit()
+            except Exception:
+                connection.rollback()
+                raise
 
     def query(
         self,

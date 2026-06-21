@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import shutil
 from dataclasses import dataclass, field
+from html import escape
 from pathlib import Path
 from typing import Any
 
@@ -718,22 +719,39 @@ def _scenario_html(scenario: dict[str, Any]) -> str:
     result = scenario["tool_results"][0]
     governance = scenario["governance"]
     trace = scenario["trace"]
-    status_class = f"status-{scenario['transcript']['status']}"
-    output = json.dumps(result["output"], ensure_ascii=False)
+    status = scenario["transcript"]["status"]
+    status_class = _status_class(status)
+    output = _html_json(result["output"])
     return f"""
 <article class="card">
-  <h2>{scenario["title"]}</h2>
-  <p class="purpose">{scenario["purpose"]}</p>
-  <div class="row"><div class="label">Agent</div><div><code>{scenario["agent"]["agent_id"]}</code> / {scenario["agent"]["framework"]}</div></div>
-  <div class="row"><div class="label">Transcript</div><div class="{status_class}">{scenario["transcript"]["status"]}</div></div>
-  <div class="row"><div class="label">Tool result</div><div><code>{result["status"]}</code> {output}</div></div>
-  <div class="row"><div class="label">Policy</div><div><code>{governance["policy"]["decision"]}</code> / {governance["policy"]["reason"]}</div></div>
-  <div class="row"><div class="label">Approval</div><div><code>{governance["approval"]["status"]}</code></div></div>
-  <div class="row"><div class="label">Sandbox</div><div><code>{governance["sandbox"]["isolation_level"]}</code> / {governance["sandbox"]["backend"]}</div></div>
-  <div class="row"><div class="label">Audit</div><div><code>{governance["audit"]["status"]}</code>, {governance["audit"]["event_count"]} events</div></div>
-  <div class="row"><div class="label">Trace</div><div><code>{trace["trace_id"]}</code></div></div>
+  <h2>{_html_text(scenario["title"])}</h2>
+  <p class="purpose">{_html_text(scenario["purpose"])}</p>
+  <div class="row"><div class="label">Agent</div><div><code>{_html_text(scenario["agent"]["agent_id"])}</code> / {_html_text(scenario["agent"]["framework"])}</div></div>
+  <div class="row"><div class="label">Transcript</div><div class="{status_class}">{_html_text(status)}</div></div>
+  <div class="row"><div class="label">Tool result</div><div><code>{_html_text(result["status"])}</code> {output}</div></div>
+  <div class="row"><div class="label">Policy</div><div><code>{_html_text(governance["policy"]["decision"])}</code> / {_html_text(governance["policy"]["reason"])}</div></div>
+  <div class="row"><div class="label">Approval</div><div><code>{_html_text(governance["approval"]["status"])}</code></div></div>
+  <div class="row"><div class="label">Sandbox</div><div><code>{_html_text(governance["sandbox"]["isolation_level"])}</code> / {_html_text(governance["sandbox"]["backend"])}</div></div>
+  <div class="row"><div class="label">Audit</div><div><code>{_html_text(governance["audit"]["status"])}</code>, {_html_text(governance["audit"]["event_count"])} events</div></div>
+  <div class="row"><div class="label">Trace</div><div><code>{_html_text(trace["trace_id"])}</code></div></div>
 </article>
 """
+
+
+def _html_text(value: Any) -> str:
+    return escape("n/a" if value is None else str(value), quote=True)
+
+
+def _html_json(value: Any) -> str:
+    return _html_text(json.dumps(value, ensure_ascii=False))
+
+
+def _status_class(status: Any) -> str:
+    if status in {"success", "completed"}:
+        return "status-success"
+    if status in {"denied", "blocked", "failed", "rejected"}:
+        return "status-denied"
+    return ""
 
 
 def _render_png(report: dict[str, Any], path: Path) -> None:

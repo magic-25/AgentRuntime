@@ -61,7 +61,7 @@ class AgentRuntime:
         self.sandbox_executor = sandbox_executor or UnavailableSandboxExecutor()
         self._audit_event_types: list[str] = []
         self._audit_event_cursor = 0
-        self._agent_trace_context: dict[str, str] | None = None
+        self._agent_trace_context: dict[str, Any] | None = None
 
     @classmethod
     def from_dict(
@@ -108,7 +108,6 @@ class AgentRuntime:
         actor: dict[str, Any],
         environment: str,
         metadata: AgentMetadata | dict[str, Any] | None = None,
-        direct_tools: dict[str, Any] | None = None,
     ) -> RegisteredAgent:
         normalized = self._normalize_agent_metadata(agent_id, metadata, environment)
         self._audit_event_cursor = len(self._audit_event_types)
@@ -125,7 +124,6 @@ class AgentRuntime:
             actor,
             environment,
             normalized,
-            direct_tools=direct_tools,
             registration_audit_ok=registration_audit_ok,
         )
 
@@ -137,7 +135,6 @@ class AgentRuntime:
         actor: dict[str, Any],
         environment: str,
         metadata: AgentMetadata | dict[str, Any] | None = None,
-        direct_tools: dict[str, Any] | None = None,
     ) -> AgentRunResult:
         return self.register_agent(
             agent_id,
@@ -145,7 +142,6 @@ class AgentRuntime:
             actor=actor,
             environment=environment,
             metadata=metadata,
-            direct_tools=direct_tools,
         ).run_session(prompt)
 
     def _normalize_agent_metadata(
@@ -298,6 +294,17 @@ class AgentRuntime:
                 self._observe_result(result)
                 return result
 
+        max_tool_calls_error = self._agent_max_tool_calls_error()
+        if max_tool_calls_error is not None:
+            return self._execution_error(
+                call,
+                max_tool_calls_error,
+                max_tool_calls_error,
+                span_started_at,
+                metadata,
+                status="denied",
+            )
+
         engine = PolicyEngine(self.config, self.registry)
         policy_span_id = f"span_{uuid4().hex}"
         policy_started_at = perf_counter()
@@ -401,6 +408,21 @@ class AgentRuntime:
             result = self._audit_write_failed_result(call)
             self._observe_result(result)
             return result
+
+        approval_requirement_error = (
+            self._agent_approval_requirement_error(decision, self.registry.get(tool_name))
+            if decision.decision == "allow"
+            else None
+        )
+        if approval_requirement_error is not None:
+            return self._execution_error(
+                call,
+                approval_requirement_error,
+                approval_requirement_error,
+                span_started_at,
+                metadata,
+                status="denied",
+            )
 
         if decision.decision == "deny":
             result = ToolResult(tool_call_id=call.tool_call_id, status="denied", error=decision.reason, run_id=call.run_id)
@@ -509,15 +531,18 @@ class AgentRuntime:
                 self._observe_result(result)
                 return result
 
-        if not self._audit("ToolExecutionStarted", call, {}):
-            result = self._audit_write_failed_result(call)
-            self._observe_result(result)
-            return result
         try:
             definition = self.registry.get(tool_name)
+            profile_error = self._agent_profile_requirement_error(definition)
+            if profile_error is not None:
+                return self._execution_error(call, profile_error, profile_error, span_started_at, metadata, status="denied")
             sandbox_error = self._sandbox_requirement_error(definition, call.environment)
             if sandbox_error is not None:
                 return self._execution_error(call, sandbox_error, sandbox_error, span_started_at, metadata, status="denied")
+            if not self._audit("ToolExecutionStarted", call, {}):
+                result = self._audit_write_failed_result(call)
+                self._observe_result(result)
+                return result
             if definition.executor_kind == "sandboxed_subprocess":
                 if not self._audit(
                     "SandboxEnforced",
@@ -898,6 +923,51 @@ class AgentRuntime:
             return "sandbox.required"
         return None
 
+    def _agent_profile_requirement_error(self, definition: Any) -> str | None:
+        if self._agent_trace_context is None:
+            return None
+        declared_capabilities = set(self._agent_trace_context.get("capabilities") or [])
+        if declared_capabilities:
+            missing_capabilities = [
+                capability for capability in definition.capabilities_required if capability not in declared_capabilities
+            ]
+            if missing_capabilities:
+                return "agent.capability_denied"
+
+        runtime_profile = self._agent_trace_context.get("runtime_profile") or {}
+        if (
+            runtime_profile.get("sandbox_required")
+            and _requires_strong_guard(definition)
+            and definition.executor_kind == "subprocess"
+        ):
+            return "agent.sandbox_required"
+        return None
+
+    def _agent_max_tool_calls_error(self) -> str | None:
+        if self._agent_trace_context is None:
+            return None
+        runtime_profile = self._agent_trace_context.get("runtime_profile") or {}
+        max_tool_calls = runtime_profile.get("max_tool_calls")
+        if max_tool_calls is None:
+            return None
+        tool_call_count = int(self._agent_trace_context.get("tool_call_count", 0))
+        if tool_call_count >= int(max_tool_calls):
+            return "agent.max_tool_calls_exceeded"
+        self._agent_trace_context["tool_call_count"] = tool_call_count + 1
+        return None
+
+    def _agent_approval_requirement_error(self, decision: Any, definition: Any) -> str | None:
+        if self._agent_trace_context is None:
+            return None
+        runtime_profile = self._agent_trace_context.get("runtime_profile") or {}
+        if runtime_profile.get("approval_required") and _requires_strong_guard(definition) and decision.decision == "allow":
+            return "agent.approval_required"
+        return None
+
 
 def _sandbox_violation_code(error: SandboxViolationError) -> str:
     return str(error).split(":", 1)[0] or "sandbox.violation"
+
+
+def _requires_strong_guard(definition: Any) -> bool:
+    return definition.risk_level in {"high", "critical"}

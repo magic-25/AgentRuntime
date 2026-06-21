@@ -49,9 +49,10 @@ class DockerSandboxBackend(SandboxExecutor):
     def execute(self, spec: SandboxCommandSpec) -> ProcessResult:
         plan = self.build_plan(spec)
         docker_argv = self._build_docker_argv(plan)
+        docker_env = _docker_process_env(plan.env)
         timeout_seconds = max(1, int((plan.timeout_ms + 999) / 1000))
         try:
-            completed = self.run(docker_argv, text=True, capture_output=True, check=False, timeout=timeout_seconds)
+            completed = self.run(docker_argv, text=True, capture_output=True, check=False, timeout=timeout_seconds, env=docker_env)
         except FileNotFoundError as error:
             raise SandboxUnavailableError(f"docker.unavailable: {error}") from error
         except OSError as error:
@@ -110,7 +111,7 @@ class DockerSandboxBackend(SandboxExecutor):
             argv.extend(["--volume", _volume(write_mount, _container_path(plan.cwd, write_mount), "rw")])
 
         for key in sorted(plan.env):
-            argv.extend(["--env", f"{key}={plan.env[key]}"])
+            argv.extend(["--env", key])
 
         argv.append(self.image)
         argv.extend(plan.argv)
@@ -124,3 +125,9 @@ def _container_path(cwd: Path, host_path: Path) -> Path:
 
 def _volume(host_path: Path, container_path: Path, mode: str) -> str:
     return f"{host_path}:{container_path}:{mode}"
+
+
+def _docker_process_env(plan_env: dict[str, str]) -> dict[str, str]:
+    env = {"PATH": os.environ.get("PATH", "")}
+    env.update(plan_env)
+    return env
