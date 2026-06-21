@@ -68,6 +68,20 @@ PYTHONPATH=src python -m agent_runtime.cli.main sandbox evidence --backend conta
 
 Docker smoke 只证明当前环境可以执行 no-network/read-only/cap-drop smoke，不证明绝对逃逸防护。
 
+## 分支与合并规则
+
+`main` 是受保护分支。除紧急仓库恢复操作外，所有代码、公开文档、测试、CI 和 release 配置变更都必须通过 Pull Request 合并。
+
+PR 合并前必须满足：
+
+- 分支从最新 `main` 创建，并保持和 `main` 可合并。
+- GitHub Actions `CI / Python 3.12` 通过。
+- PR 描述包含验证命令和风险说明。
+- 所有 review conversation 已解决。
+- 不使用 force push、直接 push `main` 或绕过 runtime governance 的临时提交。
+
+维护者发现本地已经在 `main` 上产生变更时，应先新建分支保留变更，再通过 PR 合并；不得继续把后续变更直接推到 `main`。
+
 ## 代码要求
 
 - 保持工具调用链路经过 `ToolCall -> Context Filter -> Policy Engine -> Approval Gate -> Executor -> Result Filter -> Audit`。
