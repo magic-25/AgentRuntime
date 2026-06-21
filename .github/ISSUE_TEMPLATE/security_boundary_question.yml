@@ -1,0 +1,36 @@
+name: Security boundary question
+description: Ask about documented security boundaries without disclosing exploit details.
+title: "[Security Boundary]: "
+labels: ["security-boundary", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If you believe you found a vulnerability, follow SECURITY.md. Do not post exploit steps, secrets, or customer data here.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Boundary area
+      options:
+        - policy
+        - approval
+        - audit
+        - sandbox
+        - adapter
+        - secret-redaction
+        - pack-enablements
+        - other
+    validations:
+      required: true
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What boundary or support-level statement is unclear?
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Non-sensitive context
+      description: Optional sanitized context that helps answer the question.

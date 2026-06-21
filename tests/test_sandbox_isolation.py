@@ -1,4 +1,3 @@
-import json
 import sys
 
 from agent_runtime.audit.sqlite import SQLiteAuditSink
@@ -91,7 +90,7 @@ def test_sandboxed_command_uses_configured_provider_and_audits_enforcement(tmp_p
     spec = sandbox.calls[0]
     assert spec.isolation_level == "strong"
     assert spec.network_access is False
-    assert spec.env == {"ALLOWED": "yes", "SECRET": "no"}
+    assert spec.env == {"ALLOWED": "yes"}
     assert spec.env_allowlist == ["ALLOWED"]
 
     events = SQLiteAuditSink(tmp_path / "audit.db").query(tool_name="sandboxed_status")

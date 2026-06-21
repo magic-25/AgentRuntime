@@ -1,38 +1,189 @@
 # Agent Runtime
 
-Agent Runtime 是一个 1.0 production core 的 Python agent 工具调用运行时。它把工具调用放进统一链路：
+Agent Runtime 是一个面向生产 agent 工具调用的 Python runtime。它把工具调用放进统一链路：
 
 ```text
 ToolCall -> Context Filter -> Policy Engine -> Approval Gate -> Executor -> Result Filter -> Audit
 ```
 
-1.0 支持应用团队把 runtime 作为受控生产嵌入核心使用，同时保持生产边界、审计、审批和隔离等级清楚。
+当前公开状态：**Technical Preview**。  
+下一门禁：**Design Partner Pilot**。
+
+这不是 public launch，也不是 hosted enterprise platform。当前重点是把 runtime contracts、policy/audit/sandbox、adapter、conformance certification 和 platform-ready manifest 做到可验证，供少量 design partner 在真实场景中试点。
+
+Python 包版本使用 `0.x`，表示当前是开源 technical preview；`release status` 中的 `1.0` / `2.0` 表示内部 runtime contract 阶段，不等同于公开稳定版发布。
+
+## 项目文档
+
+- [用户指南：场景与概念](USER_GUIDE.md)
+- [Complete Report：完整运行体验](COMPLETE_REPORT.md)：使用真实 provider key 运行多个 agent，生成输出、治理证据、trace 和截图。
+- [测试报告](TEST_REPORT.md)
+- [场景测试报告](SCENARIO_TEST_REPORT.md)
+- [Real Agent 测试报告](REAL_AGENT_TEST_REPORT.md)：测试 agent 类型、职责和用例矩阵。
+- [Provider Agent Runtime 对比测试报告](PROVIDER_RUNTIME_COMPARISON_REPORT.md)：`glm-agent` 未注册 / 注册到 runtime 的执行过程对比。
+- [Agent Registry Contract](AGENT_REGISTRY_CONTRACT.md)
+- [Roadmap：版本与阶段说明](ROADMAP.md)
+- [Design Partner Runbook](DESIGN_PARTNER_RUNBOOK.md)
+- [开源 Agent 采用评估](OPEN_SOURCE_AGENT_EVALUATION.md)
+- [贡献指南](CONTRIBUTING.md)
+- [安全策略](SECURITY.md)
+- [行为准则](CODE_OF_CONDUCT.md)
+- [变更记录](CHANGELOG.md)
+- [开源许可证](LICENSE)
+
+## 当前能力
+
+### Production Core
+
+- Python SDK core。
+- policy config schema v1。
+- capability-level policy。
+- approval provider interface。
+- JSONL / SQLite audit sink。
+- tamper-evident audit hash chain。
+- audit chain verifier。
+- trace span events。
+- observer metrics。
+- limited subprocess executor。
+- sandbox provider interface。
+
+### Contrib / Adapter / Sandbox Preview
+
+- `agent_runtime_contrib` package shell。
+- pack registry，默认 disabled，必须 explicit allowlist。
+- OpenAI、Anthropic、LangGraph、MCP、Codex workspace adapter stable candidate。
+- adapter conformance 和 replay。
+- container plan backend stable candidate contract，不执行真实 Docker container。
+- Docker sandbox backend preview，显式 opt-in，使用本地 Docker daemon 执行 no-network/read-only/cap-drop command。
+- sidecar backend preview。
+- remote executor contract beta。
+- sandbox conformance 和 Docker runtime evidence。
+- Code/CI reference pilot。
+- GLM/OpenAI-compatible provider agent optional integration test。
+- agent registration lifecycle comparison test。
+- formal agent registry contract。
+- governed agent tracing test。
+- complete runtime report runner。
+- single agent run screenshot runner。
+- provider retry/backoff test。
+- optional LangGraph framework agent registration test。
+
+### Platform-Ready Contracts
+
+- policy bundle validation。
+- audit forwarding contract。
+- run export contract，默认 redacted。
+- adapter/backend registry contract。
+- platform simulation harness。
+- conformance certification format。
+- platform-ready release manifest。
+
+## 不支持 / 不承诺
+
+- 不自带 hosted SaaS。
+- 不自带 hosted control plane。
+- 不自带 enterprise console。
+- 不自带 RBAC UI。
+- 不声称 sandbox 绝对不可逃逸。
+- 不把 remote executor 声明为 stable。
+- 不把 weak subprocess 用于高风险生产写操作。
+- 不自动启用 optional adapter/backend pack。
 
 ## 快速开始
 
-源码模式：
-
-```bash
-python -m pytest
-PYTHONPATH=src python examples/minimal_agent.py
-```
-
-editable install 模式：
+首次克隆后推荐使用 editable install：
 
 ```bash
 python -m venv .venv
 . .venv/bin/activate
-python -m pip install -e .
+python -m pip install -e ".[dev]"
+python -m pytest
+python examples/minimal_agent.py
+```
+
+运行 real-agent 测试：
+
+```bash
+python -m pytest tests/test_real_agent_scenarios.py tests/test_provider_real_agent.py -q
+```
+
+真实 GLM/Z.AI provider integration 默认跳过。不要把 API key 写入可提交文件；如需本地验证，可以复制 `.env.example` 到 ignored `.env` 并填入轮换后的 key：
+
+```bash
+cp .env.example .env
+python -m pytest tests/test_provider_real_agent.py::test_glm_provider_agent_can_call_real_provider_when_key_is_configured -q
+```
+
+只验证 CLI 初始化和配置校验：
+
+```bash
 agent-runtime init --path agent-runtime.json
 agent-runtime validate --path agent-runtime.json
 ```
 
-生成起始配置：
+生成和校验起始配置：
 
 ```bash
 PYTHONPATH=src python -m agent_runtime.cli.main init --path agent-runtime.json
 PYTHONPATH=src python -m agent_runtime.cli.main validate --path agent-runtime.json
 ```
+
+查看 release manifest：
+
+```bash
+PYTHONPATH=src python -m agent_runtime.cli.main release status
+```
+
+## Certification / Evidence
+
+生成 platform-ready certification report：
+
+```bash
+PYTHONPATH=src python -m agent_runtime.cli.main certify run --subject all
+```
+
+采集 container sandbox runtime evidence：
+
+```bash
+PYTHONPATH=src python -m agent_runtime.cli.main sandbox evidence --backend container
+```
+
+运行 Docker smoke evidence：
+
+```bash
+PYTHONPATH=src python -m agent_runtime.cli.main sandbox evidence --backend container --run-smoke --image busybox:latest
+```
+
+注意：Docker smoke 只证明当前环境可以执行 no-network/read-only/cap-drop smoke，不证明绝对逃逸防护。
+
+运行 adapter replay：
+
+```bash
+PYTHONPATH=src python -m agent_runtime.cli.main adapter replay --scenario code-ci --adapter openai --adapter langgraph --adapter codex
+```
+
+运行 adapter conformance：
+
+```bash
+PYTHONPATH=src python -m agent_runtime.cli.main adapter conformance --adapter all --dry-run
+```
+
+运行 sandbox conformance：
+
+```bash
+PYTHONPATH=src python -m agent_runtime.cli.main sandbox conformance --backend container --dry-run
+PYTHONPATH=src python -m agent_runtime.cli.main sandbox conformance --backend docker --dry-run
+PYTHONPATH=src python -m agent_runtime.cli.main sandbox conformance --backend sidecar --dry-run
+PYTHONPATH=src python -m agent_runtime.cli.main sandbox conformance --backend remote --dry-run
+```
+
+运行 platform simulation：
+
+```bash
+PYTHONPATH=src python -m agent_runtime.cli.main platform simulate --scenario all
+```
+
+## Audit / Policy / Observer
 
 查看 audit：
 
@@ -40,34 +191,10 @@ PYTHONPATH=src python -m agent_runtime.cli.main validate --path agent-runtime.js
 PYTHONPATH=src python -m agent_runtime.cli.main audit tail --path .agent-runtime/audit.jsonl
 ```
 
-0.2 Developer Preview 诊断和查询：
+查询 SQLite audit：
 
 ```bash
-PYTHONPATH=src python -m agent_runtime.cli.main init --path agent-runtime.json
-PYTHONPATH=src python -m agent_runtime.cli.main doctor --path agent-runtime.json
 PYTHONPATH=src python -m agent_runtime.cli.main audit query --path .agent-runtime/audit.db --run-id <run_id>
-```
-
-0.6 Production Pilot 示例：
-
-```bash
-PYTHONPATH=src python examples/staging_internal_admin_pilot.py
-PYTHONPATH=src python -m agent_runtime.cli.main audit query --path .agent-runtime/staging-pilot/pilot-audit.db --tool-name read_customer
-PYTHONPATH=src python -m agent_runtime.cli.main audit verify --path .agent-runtime/staging-pilot/pilot-audit.db --sink sqlite
-```
-
-命令行示例会重置 `.agent-runtime/staging-pilot/` 下由示例生成的 audit、observer 和 report 文件，确保 smoke test 不被旧格式本地审计污染。作为库函数调用 `run_pilot(work_dir)` 时默认不清理已有文件；需要可重复 demo 时显式传入 `reset=True`。
-
-Policy config schema 导出：
-
-```bash
-PYTHONPATH=src python -m agent_runtime.cli.main schema export --type policy-config --output policy-config.schema.json
-```
-
-1.0 release status：
-
-```bash
-PYTHONPATH=src python -m agent_runtime.cli.main release status
 ```
 
 验证 audit hash chain：
@@ -77,110 +204,123 @@ PYTHONPATH=src python -m agent_runtime.cli.main audit verify --path .agent-runti
 PYTHONPATH=src python -m agent_runtime.cli.main audit verify --path .agent-runtime/staging-pilot/pilot-audit.db --sink sqlite
 ```
 
-## 0.1 范围
+导出 policy config schema：
 
-- Python SDK
-- JSON 配置加载
-- Python function tool
-- command tool
-- allow / deny / require_approval
-- 本地 approval provider 接口
-- in-process executor
-- subprocess executor
-- JSONL audit sink
-- 常见 secret 字段脱敏
+```bash
+PYTHONPATH=src python -m agent_runtime.cli.main schema export --type policy-config --output policy-config.schema.json
+```
 
-## 0.2 Developer Preview 范围
+调试 policy：
 
-- `agent-runtime doctor`
-- SQLite audit sink
-- `agent-runtime audit query --run-id`
-- 更可读的 CLI 配置错误，包含路径、字段和修复建议
+```bash
+PYTHONPATH=src python -m agent_runtime.cli.main policy debug --path agent-runtime.json --tool <tool> --environment prod
+```
 
-## 0.3 Policy & Audit Hardening 范围
+查看 observer：
 
-- capability-level policy：unknown capability 默认拒绝，deny 覆盖 allow，require approval 可作用于 capability。
-- `PolicyEvaluated` audit event 记录 capability、actor、environment、policy version。
-- audit event 包含 `event_id`、`trace_id`、`span_id`、`tool_name`。
-- SQLite audit query 支持 `run_id`、`trace_id`、`tool_name`。
-- policy hook 异常默认 deny。
-- approval timeout 默认 reject。
-- audit sink 写入失败按环境策略处理。
-- 基础 trace span event。
-- 配置化 redaction 字段。
+```bash
+PYTHONPATH=src python -m agent_runtime.cli.main observe status --path .agent-runtime/observer.json
+```
 
-## 0.4 Integration Preview 范围
+生成单次 run 的完整运行过程 HTML：
 
-- OpenAI-style adapter spike。
-- LangGraph-style adapter spike。
-- MCP-style adapter spike。
-- adapter 只翻译调用并调用 runtime core，不直接执行工具。
-- adapter 来源进入 audit/trace metadata。
-- adapter 不能授予 capability。
+```bash
+PYTHONPATH=src python -m agent_runtime.cli.main run view \
+  --audit .agent-runtime/run-screenshots/real-provider-agent-run-audit.jsonl \
+  --snapshot .agent-runtime/run-screenshots/real-provider-agent-run.json \
+  --output .agent-runtime/run-screenshots/real-provider-agent-run-view.html
+```
 
-运行 OpenAI-style 示例：
+该页面会展示 input、agent decision、runtime governance、execution timeline、tool calls、trace tree 和 raw evidence。
+
+## Examples
+
+最小 agent：
+
+```bash
+PYTHONPATH=src python examples/minimal_agent.py
+```
+
+OpenAI-style adapter 示例：
 
 ```bash
 PYTHONPATH=src python examples/openai_style_adapter.py
 ```
 
-## 0.5 Production Readiness Preview 范围
+完整 runtime report，包含复杂 `ProductionIncidentAgent` 场景：
 
-- callback approval provider。
-- `agent-runtime policy debug`。
-- agent-observer 基础指标。
-- `agent-runtime observe status`。
-- audit failure 进入 observer metric。
-- dev audit failure 默认 warn，prod 默认 fail closed。
+```bash
+PYTHONPATH=src python examples/complete_runtime_report.py
+PYTHONPATH=src python -m agent_runtime.cli.main run view \
+  --audit .agent-runtime/complete-report/production_incident-audit.jsonl \
+  --report .agent-runtime/complete-report/complete-report.json \
+  --scenario production_incident \
+  --output .agent-runtime/complete-report/production-incident-run-view.html
+```
 
-## 0.6 Production Pilot 范围
+同一个 `ProductionIncidentAgent` 的未注册 direct execution 和 registered runtime execution 对比：
 
-- staging internal admin pilot 示例。
-- production pilot report，记录 isolation level、retention、audit sink 责任边界、失败演练和已知绕过方式。
-- SQLite audit query 可按 `run_id`、`trace_id`、`tool_name` 任意组合查询。
-- runtime 对 executor timeout 和 tool error 返回可区分错误。
-- command tool 试点覆盖 cwd、env allowlist、timeout、stdout/stderr 截断。
-- 0.6 只表示 production pilot supported，不表示完整生产平台或强 sandbox。
+```bash
+PYTHONPATH=src python examples/production_incident_comparison.py
+open .agent-runtime/production-incident-comparison/registered-run-view.html
+```
 
-## 0.8 Release Candidate 范围
+运行后会生成：
 
-- policy config JSON Schema release candidate。
-- `agent-runtime schema export --type policy-config`。
-- 稳定 API 和 experimental API 清单。
-- 0.x 到 1.0 迁移说明。
-- adapter 和 pilot report 仍标记为 experimental。
+- `.agent-runtime/production-incident-comparison/comparison.json`
+- `.agent-runtime/production-incident-comparison/registered-audit.jsonl`
+- `.agent-runtime/production-incident-comparison/registered-run-view.html`
 
-## 1.0 Production Core 范围
+其中 direct 路径直接调用本地工具，不产生 audit/trace；registered 路径会进入 policy、approval、sandbox、audit 和 trace，并拒绝未授权 `apply_hotfix`。
 
-- Python SDK core。
-- policy config schema v1。
-- capability policy。
-- approval provider interface。
-- JSONL / SQLite audit sink。
-- tamper-evident audit hash chain。
-- audit chain verifier：`agent-runtime audit verify`。
-- trace span events。
-- observer metrics。
-- limited subprocess executor for low-risk allowlisted commands。
-- sandbox provider interface；强隔离由宿主接入的 sandbox backend 提供，backend 不可用时 fail closed。
-- release manifest：`agent-runtime release status`。
+staging internal admin pilot：
 
-## 1.0 Experimental / Unsupported
+```bash
+PYTHONPATH=src python examples/staging_internal_admin_pilot.py
+PYTHONPATH=src python -m agent_runtime.cli.main audit query --path .agent-runtime/staging-pilot/pilot-audit.db --tool-name read_customer
+PYTHONPATH=src python -m agent_runtime.cli.main audit verify --path .agent-runtime/staging-pilot/pilot-audit.db --sink sqlite
+```
 
-- OpenAI-style、LangGraph-style、MCP adapter 仍为 experimental。
-- production pilot report 仍为 experimental。
-- sidecar、remote、container executor 不属于 1.0 稳定生产承诺。
-- 弱隔离 subprocess 不可用于高风险 prod 写操作；不可信代码执行、hosted control plane、RBAC 不属于 1.0 支持范围。
+命令行示例会重置 `.agent-runtime/staging-pilot/` 下由示例生成的 audit、observer 和 report 文件，确保 smoke test 不被旧格式本地审计污染。作为库函数调用 `run_pilot(work_dir)` 时默认不清理已有文件；需要可重复 demo 时显式传入 `reset=True`。
 
-## 安全边界
+## Support Matrix
 
-subprocess executor 不是强安全沙箱。它只提供独立进程、cwd、env allowlist、timeout、stdout/stderr 捕获和输出截断。高风险 prod command tool 必须使用 `sandboxed_command_tool` 和宿主注入的强隔离 sandbox backend；未配置 backend 时 runtime 返回 `sandbox.unavailable`，不会退回普通 subprocess。
+| Level | Items |
+| --- | --- |
+| supported | core runtime contracts、policy config schema v1、approval provider interface、audit sink contract、observer metrics、adapter/sandbox conformance contracts |
+| stable candidate | OpenAI adapter、Anthropic adapter、LangGraph adapter、MCP adapter、Codex workspace adapter、container plan backend contract、control plane API |
+| preview | Codex workflow、platform integration contracts、sidecar backend、Docker sandbox backend |
+| experimental | Codex connectors、OpenTelemetry sink、HTTP API tool |
+| beta | remote executor |
+| unsupported | hosted SaaS、hosted control plane、enterprise console、RBAC UI、absolute sandbox escape prevention |
 
-JSONL / SQLite audit sink 会写入 `event_hash` 和 `previous_event_hash`，用于检测本地审计链篡改。可以用 `agent-runtime audit verify` 验证链完整性。它不是外部 WORM/合规归档；需要更强追责时应接入宿主的 append-only sink。
+## Security Boundary
 
-## 1.0 Production Core 限制
+`require_approval` 没有显式 approval provider 时默认 reject，不会静默批准。测试或 demo 如需自动批准，必须显式注入 `StaticApprovalProvider(approved=True, ...)`。
 
-- 当前已验证源码模式和 editable install 模式。
-- 1.0 支持 JSON 配置路径；YAML 可以在后续版本或可选依赖中补齐。
-- `tools list` 仍是 CLI 占位命令，不会自动发现宿主应用里的 runtime tool。
-- 生产环境建议使用 capability-level policy，并保持 `default_decision: deny`。
+subprocess executor 不是强安全沙箱。它只提供独立进程、cwd、env allowlist、timeout、stdout/stderr 捕获和输出截断。
+
+高风险 prod command tool 必须使用 `sandboxed_command_tool` 和宿主注入的强隔离 sandbox backend；backend 不可用时 runtime 返回 `sandbox.unavailable`，不会退回普通 subprocess。当前 contrib `ContainerSandboxBackend` 是 container execution plan simulation，用于验证 contract 和 abuse checks；`DockerSandboxBackend` 是显式 opt-in 的真实 Docker execution preview，默认 no-network、read-only、cap-drop ALL、no-new-privileges、资源限制和 env allowlist。它仍依赖宿主 Docker 安全基线，不声明绝对 escape prevention。
+
+JSONL / SQLite audit sink 会写入 `event_hash` 和 `previous_event_hash`，用于检测本地审计链篡改。JSONL sink 会用本地 advisory file lock 串行化单节点写入，避免并发写破坏 hash chain。可以用 `agent-runtime audit verify` 验证链完整性。它不是分布式锁、外部 WORM 或合规归档；需要更强追责时应接入宿主的 append-only sink。
+
+## Design Partner Pilot
+
+当前推荐使用方式是 design partner pilot，而不是公开大规模发布。
+
+建议 pilot 场景：
+
+- Code/CI agent：读 repo、跑 allowlisted command、产出 diff，不 commit/push。
+- Ops diagnostic agent：只读系统状态，所有命令经 policy/audit。
+- Internal automation agent：受限写入目录，sandbox backend 明确。
+
+进入 pilot 前建议至少执行：
+
+```bash
+python -m pytest
+python -m pyright src
+PYTHONPATH=src python -m agent_runtime.cli.main certify run --subject all
+PYTHONPATH=src python -m agent_runtime.cli.main sandbox evidence --backend container --run-smoke --image busybox:latest
+PYTHONPATH=src python -m agent_runtime.cli.main sandbox conformance --backend docker --dry-run
+PYTHONPATH=src python -m agent_runtime.cli.main adapter replay --scenario code-ci --adapter openai --adapter langgraph --adapter codex
+```

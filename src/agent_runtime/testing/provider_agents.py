@@ -1,0 +1,330 @@
+from __future__ import annotations
+
+import json
+import os
+import time
+import urllib.error
+import urllib.request
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Protocol
+
+from agent_runtime.core.models import ToolResult
+from agent_runtime.core.runtime import AgentRuntime
+
+
+DEFAULT_GLM_BASE_URL = "https://api.z.ai/api/paas/v4"
+DEFAULT_GLM_MODEL = "glm-5.2"
+
+
+class ProviderAgentError(RuntimeError):
+    pass
+
+
+class ChatCompletionTransport(Protocol):
+    def complete(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+
+@dataclass(frozen=True)
+class ProviderToolCallingTranscript:
+    status: str
+    provider: str
+    model: str
+    decisions: list[str]
+    registration: str = "runtime"
+    agent_id: str | None = None
+    agent_metadata: dict[str, Any] = field(default_factory=dict)
+    trace_id: str | None = None
+    agent_span_id: str | None = None
+    raw_tool_name: str | None = None
+    raw_arguments: dict[str, Any] = field(default_factory=dict)
+    tool_results: list[ToolResult] = field(default_factory=list)
+    audit_events: list[str] = field(default_factory=list)
+    error: str | None = None
+
+
+class OpenAICompatibleChatCompletionTransport:
+    def __init__(
+        self,
+        api_key: str,
+        base_url: str,
+        timeout_seconds: float = 30.0,
+        max_retries: int = 0,
+        retry_backoff_seconds: float = 0.0,
+        sleeper: Any | None = None,
+    ) -> None:
+        if not api_key:
+            raise ProviderAgentError("api_key is required")
+        self.api_key = api_key
+        self.base_url = base_url.rstrip("/")
+        self.timeout_seconds = timeout_seconds
+        self.max_retries = max(0, max_retries)
+        self.retry_backoff_seconds = max(0.0, retry_backoff_seconds)
+        self.sleeper = sleeper or time.sleep
+
+    def complete(self, payload: dict[str, Any]) -> dict[str, Any]:
+        for attempt in range(self.max_retries + 1):
+            request = urllib.request.Request(
+                f"{self.base_url}/chat/completions",
+                data=json.dumps(payload).encode("utf-8"),
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                },
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
+                    return json.loads(response.read().decode("utf-8"))
+            except urllib.error.HTTPError as error:
+                detail = _redact_secret(error.read().decode("utf-8", errors="replace"), self.api_key)
+                if _retryable_http_status(error.code) and attempt < self.max_retries:
+                    self._sleep_before_retry(attempt)
+                    continue
+                raise ProviderAgentError(f"provider.http_error:{error.code}:{_truncate(detail)}") from error
+            except (urllib.error.URLError, TimeoutError) as error:
+                if attempt < self.max_retries:
+                    self._sleep_before_retry(attempt)
+                    continue
+                raise ProviderAgentError(f"provider.request_failed:{error}") from error
+        raise ProviderAgentError("provider.retry_exhausted")
+
+    def _sleep_before_retry(self, attempt: int) -> None:
+        delay = self.retry_backoff_seconds * (2**attempt)
+        if delay > 0:
+            self.sleeper(delay)
+
+
+class OpenAICompatibleToolCallingAgent:
+    def __init__(
+        self,
+        runtime: AgentRuntime | None,
+        transport: ChatCompletionTransport,
+        provider: str,
+        model: str,
+        actor: dict[str, Any],
+        environment: str,
+    ) -> None:
+        self.runtime = runtime
+        self.transport = transport
+        self.provider = provider
+        self.model = model
+        self.actor = actor
+        self.environment = environment
+
+    def run(self, prompt: str) -> ProviderToolCallingTranscript:
+        decisions = [f"request:{self.provider}"]
+        tool_call = self._request_tool_call(prompt)
+        if tool_call is None:
+            decisions.append("blocked:provider.no_tool_call")
+            return ProviderToolCallingTranscript(
+                status="blocked",
+                provider=self.provider,
+                model=self.model,
+                decisions=decisions,
+                registration="registered" if self.runtime is not None else "unregistered",
+                error="provider.no_tool_call",
+            )
+
+        tool_name, arguments = tool_call
+        decisions.append(f"tool_call:{tool_name}")
+        if self.runtime is None:
+            raise ProviderAgentError("runtime.required")
+        result = self.runtime.call_tool(
+            tool_name,
+            arguments,
+            actor=self.actor,
+            environment=self.environment,
+            adapter_source=self.provider,
+        )
+        decisions.append(f"runtime:{result.status}")
+        decisions.append("stop" if result.status == "success" else "blocked")
+        return ProviderToolCallingTranscript(
+            status="completed" if result.status == "success" else "blocked",
+            provider=self.provider,
+            model=self.model,
+            registration="registered",
+            raw_tool_name=tool_name,
+            raw_arguments=arguments,
+            tool_results=[result],
+            decisions=decisions,
+            error=result.error,
+        )
+
+    def run_unregistered(self, prompt: str, direct_tools: dict[str, Any]) -> ProviderToolCallingTranscript:
+        decisions = [f"request:{self.provider}"]
+        tool_name, arguments = self.request_tool_call(prompt)
+        decisions.append(f"tool_call:{tool_name}")
+        if tool_name not in direct_tools:
+            decisions.append("blocked:tool.missing")
+            return ProviderToolCallingTranscript(
+                status="blocked",
+                provider=self.provider,
+                model=self.model,
+                registration="unregistered",
+                decisions=decisions,
+                raw_tool_name=tool_name,
+                raw_arguments=arguments,
+                error="tool.missing",
+            )
+        output = direct_tools[tool_name](**arguments)
+        decisions.extend(["direct:success", "stop"])
+        return ProviderToolCallingTranscript(
+            status="completed",
+            provider=self.provider,
+            model=self.model,
+            registration="unregistered",
+            decisions=decisions,
+            raw_tool_name=tool_name,
+            raw_arguments=arguments,
+            tool_results=[
+                ToolResult(
+                    tool_call_id="direct",
+                    output=output,
+                    status="success",
+                    run_id=None,
+                )
+            ],
+            audit_events=[],
+        )
+
+    def request_tool_call(self, prompt: str) -> tuple[str, dict[str, Any]]:
+        tool_call = self._request_tool_call(prompt)
+        if tool_call is None:
+            raise ProviderAgentError("provider.no_tool_call")
+        return tool_call
+
+    def _request_tool_call(self, prompt: str) -> tuple[str, dict[str, Any]] | None:
+        response = self.transport.complete(self._payload(prompt))
+        return self._first_tool_call(response)
+
+    def _payload(self, prompt: str) -> dict[str, Any]:
+        return {
+            "model": self.model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a test agent. Use the available tool exactly once when the user asks "
+                        "for echo, and do not include secrets in tool arguments."
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ],
+            "tools": [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "echo",
+                        "description": "Echo a short test message through Agent Runtime.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {"message": {"type": "string"}},
+                            "required": ["message"],
+                            "additionalProperties": False,
+                        },
+                    },
+                }
+            ],
+            "tool_choice": "auto",
+            "temperature": 0,
+        }
+
+    def _first_tool_call(self, response: dict[str, Any]) -> tuple[str, dict[str, Any]] | None:
+        choices = response.get("choices", [])
+        if not choices:
+            return None
+        message = choices[0].get("message", {})
+        tool_calls = message.get("tool_calls", [])
+        if not tool_calls:
+            return None
+        function = tool_calls[0].get("function", {})
+        name = function.get("name")
+        if not name:
+            return None
+        return name, _coerce_arguments(function.get("arguments", {}))
+
+
+def create_glm_tool_calling_agent_from_env(
+    runtime: AgentRuntime | None,
+    actor: dict[str, Any],
+    environment: str,
+    env_path: str | Path | None = ".env",
+) -> OpenAICompatibleToolCallingAgent:
+    dotenv = _read_dotenv(env_path)
+    api_key = _env_or_dotenv("GLM_API_KEY", dotenv) or _env_or_dotenv("ZAI_API_KEY", dotenv)
+    if not api_key:
+        raise ProviderAgentError("GLM_API_KEY or ZAI_API_KEY is required")
+    base_url = _env_or_dotenv("GLM_BASE_URL", dotenv) or _env_or_dotenv("ZAI_BASE_URL", dotenv) or DEFAULT_GLM_BASE_URL
+    model = _env_or_dotenv("GLM_MODEL", dotenv) or _env_or_dotenv("ZAI_MODEL", dotenv) or DEFAULT_GLM_MODEL
+    timeout_seconds = float(_env_or_dotenv("GLM_TIMEOUT_SECONDS", dotenv) or "30")
+    max_retries = int(_env_or_dotenv("GLM_MAX_RETRIES", dotenv) or "0")
+    retry_backoff_seconds = float(_env_or_dotenv("GLM_RETRY_BACKOFF_SECONDS", dotenv) or "0")
+    return OpenAICompatibleToolCallingAgent(
+        runtime=runtime,
+        transport=OpenAICompatibleChatCompletionTransport(
+            api_key=api_key,
+            base_url=base_url,
+            timeout_seconds=timeout_seconds,
+            max_retries=max_retries,
+            retry_backoff_seconds=retry_backoff_seconds,
+        ),
+        provider="glm",
+        model=model,
+        actor=actor,
+        environment=environment,
+    )
+
+
+def _coerce_arguments(value: Any) -> dict[str, Any]:
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError as error:
+            raise ProviderAgentError("provider.arguments_invalid") from error
+    if not isinstance(value, dict):
+        raise ProviderAgentError("provider.arguments_invalid")
+    return value
+
+
+def _truncate(value: str, limit: int = 240) -> str:
+    if len(value) <= limit:
+        return value
+    return f"{value[:limit]}..."
+
+
+def _redact_secret(value: str, secret: str) -> str:
+    if not secret:
+        return value
+    return value.replace(secret, "[REDACTED]")
+
+
+def _retryable_http_status(status: int) -> bool:
+    return status == 429 or 500 <= status <= 599
+
+
+def _env_or_dotenv(key: str, dotenv: dict[str, str]) -> str | None:
+    return os.getenv(key) or dotenv.get(key)
+
+
+def _read_dotenv(env_path: str | Path | None) -> dict[str, str]:
+    if env_path is None:
+        return {}
+    path = Path(env_path)
+    if not path.exists():
+        return {}
+    values: dict[str, str] = {}
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        values[key.strip()] = _strip_dotenv_quotes(value.strip())
+    return values
+
+
+def _strip_dotenv_quotes(value: str) -> str:
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+        return value[1:-1]
+    return value

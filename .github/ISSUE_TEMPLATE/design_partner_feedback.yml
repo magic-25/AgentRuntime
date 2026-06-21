@@ -1,0 +1,36 @@
+name: Design partner feedback
+description: Share non-sensitive findings from a pilot or staging walkthrough.
+title: "[Design Partner]: "
+labels: ["design-partner", "feedback", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Share summaries only. Do not include API keys, customer data, raw provider payloads, production paths, or private logs.
+  - type: textarea
+    id: scenario
+    attributes:
+      label: Scenario
+      description: What agent/runtime scenario did you test?
+      placeholder: "Code/CI agent, ops diagnostic agent, internal automation agent, etc."
+    validations:
+      required: true
+  - type: textarea
+    id: setup
+    attributes:
+      label: Runtime setup
+      description: Runtime config summary, adapter/backend choices, and support level.
+    validations:
+      required: true
+  - type: textarea
+    id: results
+    attributes:
+      label: Results
+      description: What worked, what failed, and what evidence was produced?
+    validations:
+      required: true
+  - type: textarea
+    id: gaps
+    attributes:
+      label: Gaps or blockers
+      description: What blocked pilot confidence or would be needed next?

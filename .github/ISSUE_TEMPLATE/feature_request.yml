@@ -1,0 +1,41 @@
+name: Feature request
+description: Propose a capability, contract, adapter, or workflow improvement.
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user or operator problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Describe the smallest useful change.
+    validations:
+      required: true
+  - type: dropdown
+    id: support-level
+    attributes:
+      label: Expected support level
+      options:
+        - technical-preview
+        - contract-only
+        - stable-candidate
+        - experimental
+        - not-sure
+    validations:
+      required: true
+  - type: textarea
+    id: runtime-impact
+    attributes:
+      label: Runtime boundary impact
+      description: Policy, approval, audit, sandbox, adapter, or API effects.
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Suggested evidence
+      description: Tests, conformance checks, examples, or docs that should accompany this.
