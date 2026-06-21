@@ -94,7 +94,7 @@ python -m pytest -q
 **输出结果**
 
 ```text
-201 passed in 34.43s
+201 passed in 34.08s
 ```
 
 **输出解释**
@@ -607,6 +607,10 @@ observer 反映 staging pilot 中出现了 5 次 tool call、2 次 approval requ
 ### TC-013 Scenario-Based Acceptance
 
 场景测试单独维护在 [SCENARIO_TEST_REPORT.md](SCENARIO_TEST_REPORT.md)。综合测试报告只记录它作为回归套件的一部分被纳入 `python -m pytest`，并在 REQ-010 中保留追踪关系。
+
+### TC-013B E2E Smoke
+
+E2E smoke 测试单独维护在 [E2E_TEST_REPORT.md](E2E_TEST_REPORT.md)，测试计划维护在 [E2E_TEST_PLAN.md](E2E_TEST_PLAN.md)。综合测试报告只记录它作为回归套件的一部分被纳入 `python -m pytest`，并在测试设计第 15 层中保留追踪关系。
 
 ### TC-014 Real-Agent Loop
 

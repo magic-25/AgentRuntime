@@ -122,7 +122,7 @@ python -m pytest -q
 当前本地证据：
 
 ```text
-201 passed in 34.43s
+201 passed in 34.08s
 ```
 
 ## Design Partner 记录要求

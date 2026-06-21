@@ -19,6 +19,7 @@ Python 包版本使用 `0.x`，表示当前是开源 technical preview；`releas
 - [Complete Report：完整运行体验](COMPLETE_REPORT.md)：使用真实 provider key 运行多个 agent，生成输出、治理证据、trace 和截图。
 - [测试报告](TEST_REPORT.md)
 - [场景测试报告](SCENARIO_TEST_REPORT.md)
+- [E2E 测试报告](E2E_TEST_REPORT.md)：安装、复杂 agent run view、Docker sandbox、complete report 和真实 provider 手工门禁。
 - [Real Agent 测试报告](REAL_AGENT_TEST_REPORT.md)：测试 agent 类型、职责和用例矩阵。
 - [Provider Agent Runtime 对比测试报告](PROVIDER_RUNTIME_COMPARISON_REPORT.md)：`glm-agent` 未注册 / 注册到 runtime 的执行过程对比。
 - [Agent Registry Contract](AGENT_REGISTRY_CONTRACT.md)
