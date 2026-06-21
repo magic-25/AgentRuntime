@@ -3,17 +3,23 @@ from __future__ import annotations
 from typing import Protocol
 
 from agent_runtime.execution.base import ProcessResult
-from agent_runtime.execution.sandbox import SandboxCommandSpec, SandboxExecutor, SandboxUnavailableError
+from agent_runtime.execution.sandbox import (
+    SandboxCommandSpec,
+    SandboxExecutionPlan,
+    SandboxExecutor,
+    SandboxUnavailableError,
+    build_sandbox_execution_plan,
+)
 from agent_runtime_contrib.packs.base import PackMetadata
 
 
 class SidecarClient(Protocol):
-    def run(self, spec: SandboxCommandSpec) -> ProcessResult:
+    def run(self, plan: SandboxExecutionPlan) -> ProcessResult:
         ...
 
 
 class LocalSidecarClient:
-    def run(self, spec: SandboxCommandSpec) -> ProcessResult:
+    def run(self, plan: SandboxExecutionPlan) -> ProcessResult:
         return ProcessResult(exit_code=0, stdout="sidecar-ok", stderr="")
 
 
@@ -39,7 +45,8 @@ class SidecarSandboxBackend(SandboxExecutor):
     def execute(self, spec: SandboxCommandSpec) -> ProcessResult:
         if self.client is None:
             raise SandboxUnavailableError("sandbox.unavailable: sidecar backend is unavailable")
+        plan = build_sandbox_execution_plan(spec)
         try:
-            return self.client.run(spec)
+            return self.client.run(plan)
         except TimeoutError as error:
             raise SandboxUnavailableError("sandbox.timeout: sidecar backend timed out") from error

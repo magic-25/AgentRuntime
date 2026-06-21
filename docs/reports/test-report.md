@@ -95,12 +95,12 @@ python -m pytest -q
 **输出结果**
 
 ```text
-219 passed in 44.72s
+224 passed in 38.97s
 ```
 
 **输出解释**
 
-`219 passed` 表示当前测试套件全部通过，且真实 GLM provider integration、formal agent registry contract、registered agent deny-path、registered agent capability/profile enforcement、governed agent tracing、complete runtime report、agent run screenshot、run process viewer、complete-report scenario context、JSON beauty view、production incident agent、production incident registration comparison、provider retry/backoff、LangGraph optional framework agent、approval 默认拒绝、agent lifecycle audit fail-closed、policy deny precedence、sandbox pre-execution denial、sandbox env 预过滤、secret-like env deny、Docker env argv 防泄漏、JSONL / SQLite audit 本地并发写 hash chain、显式 opt-in Docker sandbox backend preview、Docker backend CLI conformance、adapter payload fixtures、Docker stable candidate gate 和 E2E smoke 都已验证。覆盖范围包括 adapter、audit、policy、sandbox、platform、release manifest、Code/CI pilot、staging pilot、SQLite audit、tracing、11 个基于用户指南场景的 acceptance tests、复杂 production incident agent、未注册 direct execution 与 registered runtime execution 对比、complete runtime report、single-run screenshot、带业务上下文的完整运行过程 HTML、HTML escaping regression、clean wheel install、Docker sandbox runtime/failure paths E2E、run view browser evidence，以及 provider/framework-agent tests。
+`224 passed` 表示当前测试套件全部通过，且真实 GLM provider integration、formal agent registry contract、registered agent deny-path、registered agent capability/profile enforcement、governed agent tracing、complete runtime report、agent run screenshot、run process viewer、complete-report scenario context、JSON beauty view、production incident agent、production incident registration comparison、provider retry/backoff、LangGraph optional framework agent、approval 默认拒绝、agent lifecycle audit fail-closed、execution-error audit fail-closed、policy deny precedence、sandbox pre-execution denial、sandbox env 预过滤、runtime pre-backend secret-like env deny、sidecar sanitized sandbox plan、Docker env argv 防泄漏、JSONL / SQLite audit 本地并发写 hash chain、显式 opt-in Docker sandbox backend preview、Docker backend CLI conformance、adapter payload fixtures、Docker stable candidate gate 和 E2E smoke 都已验证。覆盖范围包括 adapter、audit、policy、sandbox、platform、release manifest、Code/CI pilot、staging pilot、SQLite audit、tracing、11 个基于用户指南场景的 acceptance tests、复杂 production incident agent、未注册 direct execution 与 registered runtime execution 对比、complete runtime report、single-run screenshot、带业务上下文的完整运行过程 HTML、HTML escaping regression、clean wheel install、Docker sandbox runtime/failure paths E2E、run view browser evidence、runtime governance matrix E2E，以及 provider/framework-agent tests。
 
 **结论**
 
@@ -715,6 +715,9 @@ production incident registration comparison 由 `examples/production_incident_co
 - policy tool deny 覆盖 broad capability allow 的 precedence。
 - complete report 和 single-run screenshot HTML dynamic value escaping。
 - Docker backend 不在 argv 暴露 env value，且拒绝 secret-like allowlisted env key。
+- runtime 在调用 sandbox backend 前拒绝 secret-like env，sidecar backend 只接收 sanitized sandbox execution plan。
+- execution error path 遵守 audit fail-closed。
+- approval provider approve/reject/timeout 和 concurrent runtime audit E2E。
 - SQLite audit。
 - tracing。
 

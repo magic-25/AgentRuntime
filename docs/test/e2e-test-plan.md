@@ -14,6 +14,7 @@
 | E2E-004 | complete report fake provider | `tests/e2e/test_complete_report_e2e.py` | none | automated | 从 complete report example 生成 JSON/Markdown/HTML/PNG，并验证 production incident scenario。 |
 | E2E-005 | Docker sandbox failure paths | `tests/e2e/test_docker_sandbox_failure_paths_e2e.py` | local Docker daemon | automated skip if unavailable | 验证 no-network、read-only workspace、env allowlist 和 timeout 的受治理失败路径。 |
 | E2E-006 | run view browser evidence | `tests/e2e/test_run_view_browser_evidence_e2e.py` | none | automated | 生成 complete report 和 run view HTML，验证浏览器可见证据区域、JSON beauty view 和截图 artifact。 |
+| E2E-007 | runtime governance matrix | `tests/e2e/test_runtime_governance_matrix_e2e.py` | none | automated | 验证 approval approve/reject/timeout 和并发 SQLite runtime audit hash chain。 |
 | E2E-MANUAL-001 | complete report real provider key | manual command | `GLM_API_KEY` or `ZAI_API_KEY` | manual only | 使用真实 provider key 生成完整报告，确认 key 不进入 artifact。 |
 
 ## P0 / P1 / P2 Backlog
@@ -28,8 +29,8 @@
 | P0 | REQ-E2E-X-007 run view / complete report browser evidence | E2E-006 | implemented | HTML evidence sections and PNG artifact |
 | P0 | REQ-E2E-X-008 secret boundary | E2E-MANUAL-001 plus scan | manual/automated | `.env` ignored and secret scan command |
 | P1 | REQ-E2E-X-009 OpenAI、Anthropic、LangGraph、MCP、Codex adapter/framework runtime E2E | planned | planned | 保持 optional，不进入 core runtime |
-| P1 | REQ-E2E-X-010 approval provider approve/reject/timeout E2E | planned | planned | 后续补 approval matrix |
-| P1 | REQ-E2E-X-011 concurrent audit/trace/observer E2E | planned | planned | 后续补并发 hash chain |
+| P1 | REQ-E2E-X-010 approval provider approve/reject/timeout E2E | E2E-007 | implemented | approval matrix |
+| P1 | REQ-E2E-X-011 concurrent audit/trace/observer E2E | E2E-007 | implemented | concurrent SQLite runtime audit chain |
 | P2 | REQ-E2E-X-012 sidecar、remote executor、staging/design partner、long-running recovery | deferred | deferred/manual | 需要真实或本地服务门禁 |
 
 ## E2E-001 clean wheel install
@@ -103,6 +104,17 @@
 - complete report HTML 包含 provider、policy deny、sandboxed command 等多个 agent scenario。
 - PNG screenshot artifact 存在且非空；P0 不做浏览器像素级 CI 断言。
 
+## E2E-007 runtime governance matrix
+
+目标：证明 runtime governance 的关键矩阵不只在 unit test 中存在，也能作为端到端 smoke 路径稳定运行。
+
+验证点：
+
+- approval provider approve 路径会执行工具并记录 observer approval request。
+- approval provider reject 路径返回 `status=rejected`。
+- approval timeout 路径返回 `approval.timeout`，observer 记录 timeout。
+- 并发 runtime tool calls 写入 SQLite audit 后，hash chain 仍可验证。
+
 ## E2E-MANUAL-001 complete report real provider key
 
 命令：
@@ -135,5 +147,5 @@ rg -n "(api[_-]?key|apikey|secret|token|password|sk-[A-Za-z0-9]|[A-Za-z0-9]{32,}
 - 自动 CI 不强制 Docker daemon 存在。
 - 当前没有 browser rendering pixel test；HTML 只验证内容和 artifact 生成。
 - 外部 design partner 仍需用真实 staging service 复跑 `docs/runbooks/design-partner-runbook.md`。
-- P1 adapter/framework 和 approval/concurrency E2E 已列入 backlog，尚未 verified。
+- P1 adapter/framework E2E 已列入 backlog，尚未 verified。
 - P2 sidecar、remote executor、staging 和长任务恢复仍是 deferred/manual。

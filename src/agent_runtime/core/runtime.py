@@ -30,6 +30,7 @@ from agent_runtime.execution.sandbox import (
     SandboxUnavailableError,
     SandboxViolationError,
     UnavailableSandboxExecutor,
+    filter_sandbox_env,
 )
 from agent_runtime.execution.subprocess import SubprocessExecutor
 from agent_runtime.guard.redaction import redact_secrets
@@ -669,9 +670,12 @@ class AgentRuntime:
         status: str = "error",
     ) -> ToolResult:
         result = ToolResult(tool_call_id=call.tool_call_id, status=status, error=error_code, run_id=call.run_id)
-        self._audit("RuntimeError", call, {"error": error_code, "message": message})
+        if not self._audit("RuntimeError", call, {"error": error_code, "message": message}):
+            result = self._audit_write_failed_result(call)
+            self._observe_result(result)
+            return result
         if self._tracing_enabled():
-            self._audit(
+            if not self._audit(
                 "TraceSpanFinished",
                 call,
                 {
@@ -684,7 +688,10 @@ class AgentRuntime:
                     **metadata,
                 },
                 environment=call.environment,
-            )
+            ):
+                result = self._audit_write_failed_result(call)
+                self._observe_result(result)
+                return result
         self._observe_result(result)
         return result
 
@@ -916,7 +923,7 @@ class AgentRuntime:
         return {"exit_code": result.exit_code, "stdout": result.stdout, "stderr": result.stderr}
 
     def _filtered_env(self, env: dict[str, str], env_allowlist: list[str]) -> dict[str, str]:
-        return {key: env[key] for key in env_allowlist if key in env}
+        return filter_sandbox_env(env, env_allowlist)
 
     def _sandbox_requirement_error(self, definition: Any, environment: str) -> str | None:
         if environment == "prod" and definition.executor_kind == "subprocess" and definition.risk_level == "high":

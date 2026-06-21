@@ -43,7 +43,7 @@ class SandboxConformanceRunner:
         limitations = _limitations_for_backend(backend)
 
         if isinstance(backend, ContainerSandboxBackend):
-            checks.extend(_run_container_abuse_checks(backend, failure_reasons))
+            checks.extend(_run_sandbox_abuse_checks(backend, failure_reasons))
         elif isinstance(backend, DockerSandboxBackend):
             checks.extend(_run_docker_contract_checks(backend, failure_reasons))
         elif isinstance(backend, SidecarSandboxBackend):
@@ -52,6 +52,7 @@ class SandboxConformanceRunner:
                 backend.execute(SandboxCommandSpec(argv=["python", "-V"], cwd="."))
             except SandboxUnavailableError as error:
                 failure_reasons.append(str(error).split(":", maxsplit=1)[0])
+            checks.extend(_run_sandbox_abuse_checks(backend, failure_reasons))
         elif isinstance(backend, RemoteSandboxBackend):
             checks.append("remote.contract_beta")
             failure_reasons.append("remote.contract_beta_only")
@@ -81,7 +82,7 @@ def backend_for_name(name: str) -> Any:
     raise ValueError(f"unsupported sandbox backend: {name}")
 
 
-def _run_container_abuse_checks(backend: ContainerSandboxBackend, failure_reasons: list[str]) -> list[str]:
+def _run_sandbox_abuse_checks(backend: Any, failure_reasons: list[str]) -> list[str]:
     checks: list[str] = []
     with TemporaryDirectory() as raw_tmp:
         root = Path(raw_tmp)
@@ -117,6 +118,18 @@ def _run_container_abuse_checks(backend: ContainerSandboxBackend, failure_reason
             )
         ):
             failure_reasons.append("network.allowed")
+
+        checks.append("abuse.secret_env")
+        if _sandbox_request_was_allowed(
+            backend,
+            SandboxCommandSpec(
+                argv=["python", "-V"],
+                cwd=str(repo),
+                env={"SECRET_TOKEN": "hidden"},
+                env_allowlist=["SECRET_TOKEN"],
+            ),
+        ):
+            failure_reasons.append("secret_env.allowed")
 
         checks.append("abuse.output_flood")
         output_result = backend.execute(

@@ -93,6 +93,10 @@ def build_sandbox_execution_plan(spec: SandboxCommandSpec) -> SandboxExecutionPl
     )
 
 
+def filter_sandbox_env(env: dict[str, str], allowlist: list[str]) -> dict[str, str]:
+    return _filtered_env(env, allowlist)
+
+
 def _resolve_mounts(paths: list[str], cwd: Path) -> list[Path]:
     mounts: list[Path] = []
     for raw_path in paths:
