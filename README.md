@@ -13,6 +13,22 @@ ToolCall -> Context Filter -> Policy Engine -> Approval Gate -> Executor -> Resu
 
 Python 包版本使用 `0.x`，表示当前是开源 technical preview；`release status` 中的 `1.0` / `2.0` 表示内部 runtime contract 阶段，不等同于公开稳定版发布。
 
+## English Summary
+
+Agent Runtime is a Python technical preview for running agent tool calls through policy, approval, execution, sandbox contracts, tracing, observer metrics, and audit evidence. It is intended for design partner pilots and local/runtime integration experiments, not for hosted SaaS, an enterprise console, or a stable public platform release.
+
+Quick start:
+
+```bash
+python -m venv .venv
+. .venv/bin/activate
+python -m pip install -e ".[dev]"
+python -m pytest
+python examples/minimal_agent.py
+```
+
+Before using high-risk tools, read the [Security Boundary](#security-boundary) section. `subprocess` is not a strong sandbox, and sandbox backends remain explicit opt-in.
+
 ## 项目文档
 
 - [用户指南：场景与概念](/docs/user-guide.md)
@@ -296,9 +312,11 @@ PYTHONPATH=src python -m agent_runtime.cli.main audit verify --path .agent-runti
 
 subprocess executor 不是强安全沙箱。它只提供独立进程、cwd、env allowlist、timeout、stdout/stderr 捕获和输出截断。
 
-高风险 prod command tool 必须使用 `sandboxed_command_tool` 和宿主注入的强隔离 sandbox backend；backend 不可用时 runtime 返回 `sandbox.unavailable`，不会退回普通 subprocess。当前 contrib `ContainerSandboxBackend` 是 container execution plan simulation，用于验证 contract 和 abuse checks；`DockerSandboxBackend` 是显式 opt-in 的真实 Docker execution preview，默认 no-network、read-only、cap-drop ALL、no-new-privileges、资源限制和 env allowlist。它仍依赖宿主 Docker 安全基线，不声明绝对 escape prevention。
+注册 agent 后，metadata capabilities 和 runtime profile 会参与执行拦截：未声明能力、超过 `max_tool_calls`、违反高风险 tool 的 sandbox / approval profile 都会被拒绝。注册路径不接受 direct tool fallback。
 
-JSONL / SQLite audit sink 会写入 `event_hash` 和 `previous_event_hash`，用于检测本地审计链篡改。JSONL sink 会用本地 advisory file lock 串行化单节点写入，避免并发写破坏 hash chain。可以用 `agent-runtime audit verify` 验证链完整性。它不是分布式锁、外部 WORM 或合规归档；需要更强追责时应接入宿主的 append-only sink。
+高风险 prod command tool 必须使用 `sandboxed_command_tool` 和宿主注入的强隔离 sandbox backend；backend 不可用时 runtime 返回 `sandbox.unavailable`，不会退回普通 subprocess。当前 contrib `ContainerSandboxBackend` 是 container execution plan simulation，用于验证 contract 和 abuse checks；`DockerSandboxBackend` 是显式 opt-in 的真实 Docker execution preview，默认 no-network、read-only、cap-drop ALL、no-new-privileges、资源限制和 env allowlist。secret-like env key 即使被误放进 allowlist，也会被拒绝。它仍依赖宿主 Docker 安全基线，不声明绝对 escape prevention。
+
+JSONL / SQLite audit sink 会写入 `event_hash` 和 `previous_event_hash`，用于检测本地审计链篡改。JSONL sink 会用本地 advisory file lock 串行化单节点写入，SQLite sink 会用写事务串行化本地并发写入，避免并发写破坏 hash chain。可以用 `agent-runtime audit verify` 验证链完整性。它不是分布式锁、外部 WORM 或合规归档；需要更强追责时应接入宿主的 append-only sink。
 
 ## Design Partner Pilot
 
@@ -315,6 +333,7 @@ JSONL / SQLite audit sink 会写入 `event_hash` 和 `previous_event_hash`，用
 ```bash
 python -m pytest
 python -m pyright src
+python -m ruff check .
 PYTHONPATH=src python -m agent_runtime.cli.main certify run --subject all
 PYTHONPATH=src python -m agent_runtime.cli.main sandbox evidence --backend container --run-smoke --image busybox:latest
 PYTHONPATH=src python -m agent_runtime.cli.main sandbox conformance --backend docker --dry-run

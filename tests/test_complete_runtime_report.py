@@ -5,6 +5,8 @@ import json
 import sys
 from pathlib import Path
 
+from agent_runtime.reporting.complete_report import _render_html
+
 
 def _load_complete_report_module():
     module_path = Path(__file__).resolve().parents[1] / "examples" / "complete_runtime_report.py"
@@ -97,3 +99,32 @@ def test_complete_runtime_report_generates_multi_agent_runtime_outputs(tmp_path)
     assert "真实 provider" in html_path.read_text(encoding="utf-8")
     assert screenshot_path.exists()
     assert screenshot_path.stat().st_size > 0
+
+
+def test_complete_runtime_report_html_escapes_dynamic_values():
+    report = {
+        "summary": {"scenario_count": 1, "provider_mode": "fake"},
+        "scenarios": [
+            {
+                "title": "<script>alert(1)</script>",
+                "purpose": "<img src=x onerror=alert(2)>",
+                "agent": {"agent_id": "agent<script>x</script>", "framework": "fw<script>y</script>"},
+                "transcript": {"status": "completed<script>z</script>"},
+                "tool_results": [{"status": "success", "output": {"message": "<script>alert(3)</script>"}}],
+                "governance": {
+                    "policy": {"decision": "allow", "reason": "<script>alert(4)</script>"},
+                    "approval": {"status": None},
+                    "sandbox": {"isolation_level": None, "backend": None},
+                    "audit": {"status": "committed", "event_count": 1},
+                },
+                "trace": {"trace_id": "trace<script>alert(5)</script>"},
+            }
+        ],
+    }
+
+    html = _render_html(report)
+
+    assert "<script>" not in html
+    assert "<img" not in html
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
+    assert "&lt;script&gt;alert(3)&lt;/script&gt;" in html

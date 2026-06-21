@@ -51,6 +51,8 @@ PYTHONPATH=src python -m agent_runtime.cli.main certify run --subject all
 PYTHONPATH=src python -m agent_runtime.cli.main adapter replay --scenario code-ci --adapter openai --adapter langgraph --adapter codex
 ```
 
+当前 Ruff 门槛覆盖 `E4/E7/E9/F/B`。格式化、导入排序和更激进的现代化规则会单独推进，避免把贡献 review 变成大规模机械 diff。
+
 如果改动涉及 sandbox/backend，还应运行：
 
 ```bash

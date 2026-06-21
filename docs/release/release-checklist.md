@@ -5,10 +5,10 @@ Agent Runtime 当前发布目标是 **v0.1.0 Technical Preview**。这不是 pub
 ## 已完成
 
 - GitHub repository 为 public。
-- `main` branch protection 已与 `ReviewMatrix` 对齐：enforce admins，禁止 force push/delete，不强制 review/check。
+- `main` branch protection 已与 `ReviewMatrix` 对齐：enforce admins，禁止 force push/delete，启用 required pull request flow、required conversation resolution、required linear history 和严格 required status check `Python 3.12`；`required_approving_review_count` 当前按项目约束保持 `0`。
 - GitHub private vulnerability reporting 已启用。
 - Apache-2.0 license、code of conduct、security policy、contributing guide、issue templates、PR template 和 CI 已提交。
-- CI 覆盖 compile、ruff、`pyright src`、pytest、certification、adapter replay 和 sandbox conformance。
+- CI 覆盖 compile、ruff `E4/E7/E9/F/B`、`pyright src`、pytest、certification、adapter replay 和 sandbox conformance。
 - `DockerSandboxBackend` 是显式 opt-in preview，仍不标记 stable candidate。
 - `ContainerSandboxBackend` 明确为 plan simulation，不执行真实 Docker container。
 - Production incident staging dry run 已生成 comparison、audit 和 run view artifacts。

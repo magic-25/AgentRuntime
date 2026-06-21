@@ -119,7 +119,11 @@ def _validate_resource_limits(limits: SandboxResourceLimits) -> None:
 
 
 def _filtered_env(env: dict[str, str], allowlist: list[str]) -> dict[str, str]:
-    return {key: env[key] for key in allowlist if key in env}
+    filtered = {key: env[key] for key in allowlist if key in env}
+    for key in filtered:
+        if _is_secret_env_key(key):
+            raise SandboxViolationError("env.secret_denied")
+    return filtered
 
 
 def _is_within(path: Path, parent: Path) -> bool:
@@ -147,3 +151,8 @@ def _is_credential_path(path: Path) -> bool:
     if ".config" in parts and ({"gh", "gcloud", "aws"} & parts):
         return True
     return "TOKEN" in text or "credential" in text.lower()
+
+
+def _is_secret_env_key(key: str) -> bool:
+    lowered = key.lower()
+    return any(marker in lowered for marker in ("api_key", "apikey", "token", "password", "secret", "private_key", "credential"))

@@ -49,6 +49,22 @@ def test_container_backend_filters_environment_to_allowlist_and_records_resource
     assert plan.write_mounts == [Path(out).resolve()]
 
 
+def test_container_backend_rejects_secret_like_allowlisted_environment(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    backend = ContainerSandboxBackend()
+
+    with pytest.raises(SandboxViolationError, match="env.secret_denied"):
+        backend.build_plan(
+            SandboxCommandSpec(
+                argv=["python", "-V"],
+                cwd=str(repo),
+                env={"SECRET_TOKEN": "hidden"},
+                env_allowlist=["SECRET_TOKEN"],
+            )
+        )
+
+
 def test_container_backend_enforces_stdout_and_stderr_limits(tmp_path):
     repo = tmp_path / "repo"
     src = repo / "src"

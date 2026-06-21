@@ -52,3 +52,23 @@ def test_agent_run_screenshot_captures_single_runtime_agent_run(tmp_path):
     assert "runtime screenshot" in run_view_html
     assert screenshot_path.exists()
     assert screenshot_path.stat().st_size > 0
+
+
+def test_agent_run_screenshot_html_escapes_dynamic_values():
+    module = _load_agent_run_screenshot_module()
+    snapshot = {
+        "prompt": "<script>alert(1)</script>",
+        "agent": {"provider": "<img src=x onerror=alert(2)>", "framework": "framework"},
+        "transcript": {"decisions": ["tool:<script>alert(3)</script>"]},
+        "tool_call": {"name": "echo", "arguments": {"message": "<script>alert(4)</script>"}},
+        "tool_result": {"status": "success", "output": {"message": "<script>alert(5)</script>"}},
+        "governance": {"policy": {"decision": "allow", "reason": "<script>alert(6)</script>"}, "audit": {"status": "committed", "event_count": 1}},
+        "trace": {"trace_id": "trace<script>alert(7)</script>", "contains": {"agent_run": True}},
+    }
+
+    html = module._render_html(snapshot)
+
+    assert "<script>" not in html
+    assert "<img" not in html
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
+    assert "&lt;script&gt;alert(5)&lt;/script&gt;" in html

@@ -22,18 +22,24 @@ class PolicyEngine:
 
         definition = self.registry.get(tool_name)
         required_capabilities = definition.capabilities_required or [f"tool.invoke:{tool_name}"]
-        capability_rules = [
-            rule for rule in self.config.get("rules", []) if "capabilities" in rule and self._environment_matches(rule, environment)
-        ]
-        if capability_rules:
-            return self._evaluate_capabilities(required_capabilities, capability_rules, environment, actor)
-
         matching_rules = [
             rule for rule in self.config.get("rules", []) if rule.get("tool") == tool_name and self._environment_matches(rule, environment)
         ]
         for rule in matching_rules:
             if rule.get("effect") == "deny":
                 return self._decision(rule, environment, actor)
+
+        capability_rules = [
+            rule for rule in self.config.get("rules", []) if "capabilities" in rule and self._environment_matches(rule, environment)
+        ]
+        if capability_rules:
+            capability_decision = self._evaluate_capabilities(required_capabilities, capability_rules, environment, actor)
+            if capability_decision.decision == "deny":
+                return capability_decision
+            for rule in matching_rules:
+                if rule.get("effect") == "require_approval":
+                    return self._decision(rule, environment, actor)
+            return capability_decision
 
         for effect in ("require_approval", "allow"):
             for rule in matching_rules:

@@ -89,6 +89,31 @@ def test_policy_deny_capability_overrides_allow():
     assert decision.capability == "network.connect:169.254.169.254:80"
 
 
+def test_policy_tool_deny_overrides_broad_capability_allow():
+    registry = ToolRegistry()
+
+    @registry.tool(name="danger", capabilities_required=["tool.invoke:danger"])
+    def danger() -> dict:
+        return {}
+
+    engine = PolicyEngine(
+        {
+            "version": 1,
+            "default_decision": "deny",
+            "rules": [
+                {"id": "allow-all-tools", "environment": "prod", "effect": "allow", "capabilities": ["tool.invoke:*"]},
+                {"id": "deny-danger-tool", "environment": "prod", "tool": "danger", "effect": "deny"},
+            ],
+        },
+        registry,
+    )
+
+    decision = engine.evaluate("danger", "prod", {"id": "alice"})
+
+    assert decision.decision == "deny"
+    assert decision.rule_id == "deny-danger-tool"
+
+
 def test_policy_requires_approval_for_matching_capability():
     registry = ToolRegistry()
 

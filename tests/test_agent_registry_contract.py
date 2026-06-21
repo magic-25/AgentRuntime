@@ -143,7 +143,6 @@ def test_registered_agent_deny_path_cannot_fall_back_to_direct_execution(tmp_pat
         agent,
         actor={"id": "glm-agent"},
         environment="dev",
-        direct_tools={"echo": direct_echo},
     ).run("Call echo.")
 
     assert registered.status == "blocked"
