@@ -23,7 +23,7 @@
 | 项目 | 值 |
 | --- | --- |
 | 工作目录 | Agent Runtime 仓库根目录 |
-| 日期 | 2026-06-19 |
+| 日期 | 2026-06-21 |
 | Python | 3.12.9 |
 | pytest | 9.0.2 |
 | Docker client | `Docker version 28.0.1, build 068a01e` |
@@ -37,7 +37,7 @@
 测试设计分为十五层：
 
 1. **Regression**：使用全量 `pytest` 覆盖 core、policy、audit、adapter、sandbox、platform、pilot 等现有测试。
-2. **Scenario-Based Acceptance**：把 `USER_GUIDE.md` 的 11 个场景映射成用户视角测试。
+2. **Scenario-Based Acceptance**：把 `docs/user-guide.md` 的 11 个场景映射成用户视角测试。
 3. **Certification**：使用 `certify run` 验证 stable candidate subject 是否仍具备 evidence。
 4. **Adapter Contract**：验证 adapter 是否保持 translate-only、不授予 capability、不绕过 runtime semantics。
 5. **Sandbox Contract**：验证 container、sidecar、remote 三类 backend 的 support level 和边界。
@@ -67,11 +67,11 @@
 | REQ-007 | staging internal admin pilot 能产生 audit、observer、pilot report | TC-010 Staging admin pilot | `staging-admin-pilot-output.json` | verified |
 | REQ-008 | audit hash chain 可验证 | TC-011 Audit verify | `staging-admin-audit-verify.json` | verified |
 | REQ-009 | observer 能解释 approval、deny、timeout 等运行状态 | TC-012 Observer status | `staging-admin-observer-status.json` | verified |
-| REQ-010 | 用户指南中的场景必须有可运行 acceptance 覆盖 | TC-013 Scenario-based acceptance | `SCENARIO_TEST_REPORT.md`，`tests/test_scenario_based_user_guide.py`，`scenario-based-user-guide.txt` | verified |
-| REQ-011 | 至少有自写 real agent loop 测试，不只测试 runtime contract | TC-014 Real-agent loop | `REAL_AGENT_TEST_REPORT.md`，`tests/test_real_agent_scenarios.py` | verified |
-| REQ-012 | 至少提供一个真实 provider agent 的可执行接入路径，且不提交 API key | TC-015 GLM/OpenAI-compatible provider agent | `REAL_AGENT_TEST_REPORT.md`，`tests/test_provider_real_agent.py` | verified |
-| REQ-013 | registered agent 在 runtime 中执行时必须能追踪 agent run span、tool call span、policy 决策、approval gate、sandbox 强隔离、audit commit 和失败路径 | TC-016 Governed agent tracing | `tests/test_tracing.py`，`AGENT_REGISTRY_CONTRACT.md` | verified |
-| REQ-014 | 必须有一份完整运行体验报告，展示多个 agent 进入 runtime 后的 output、治理证据、trace 和 audit | TC-017 Complete runtime report | `COMPLETE_REPORT.md`，`examples/complete_runtime_report.py`，`tests/test_complete_runtime_report.py` | verified |
+| REQ-010 | 用户指南中的场景必须有可运行 acceptance 覆盖 | TC-013 Scenario-based acceptance | `docs/reports/scenario-test-report.md`，`tests/test_scenario_based_user_guide.py`，`scenario-based-user-guide.txt` | verified |
+| REQ-011 | 至少有自写 real agent loop 测试，不只测试 runtime contract | TC-014 Real-agent loop | `docs/reports/real-agent-test-report.md`，`tests/test_real_agent_scenarios.py` | verified |
+| REQ-012 | 至少提供一个真实 provider agent 的可执行接入路径，且不提交 API key | TC-015 GLM/OpenAI-compatible provider agent | `docs/reports/real-agent-test-report.md`，`tests/test_provider_real_agent.py` | verified |
+| REQ-013 | registered agent 在 runtime 中执行时必须能追踪 agent run span、tool call span、policy 决策、approval gate、sandbox 强隔离、audit commit 和失败路径 | TC-016 Governed agent tracing | `tests/test_tracing.py`，`docs/reference/agent-registry-contract.md` | verified |
+| REQ-014 | 必须有一份完整运行体验报告，展示多个 agent 进入 runtime 后的 output、治理证据、trace 和 audit | TC-017 Complete runtime report | `docs/reports/complete-report.md`，`examples/complete_runtime_report.py`，`tests/test_complete_runtime_report.py` | verified |
 | REQ-015 | 必须能生成单次 agent 在 Agent Runtime 中运行时产生的截图，展示 prompt、provider、tool call/result、policy、audit 和 trace | TC-018 Agent run screenshot | `examples/agent_run_screenshot.py`，`tests/test_agent_run_screenshot.py` | verified |
 | REQ-016 | 必须能把单次 agent run 的完整运行过程可视化，展示 input、agent decision、runtime governance、timeline、tool calls、trace tree 和 raw evidence | TC-019 Run process viewer | `src/agent_runtime/run_view.py`，`tests/test_run_viewer.py`，`tests/test_cli_developer_preview.py` | verified |
 | REQ-017 | 必须有复杂生产级 agent 测试对象，能在同一 run 中触发 allow、approval、sandbox、explicit deny、audit 和 trace | TC-020 Production incident agent | `src/agent_runtime/testing/production_agents.py`，`tests/test_production_incident_agent.py` | verified |
@@ -94,12 +94,12 @@ python -m pytest -q
 **输出结果**
 
 ```text
-203 passed in 34.75s
+207 passed in 40.22s
 ```
 
 **输出解释**
 
-`203 passed` 表示当前测试套件全部通过，且真实 GLM provider integration、formal agent registry contract、registered agent deny-path、governed agent tracing、complete runtime report、agent run screenshot、run process viewer、complete-report scenario context、JSON beauty view、production incident agent、production incident registration comparison、provider retry/backoff、LangGraph optional framework agent、approval 默认拒绝、sandbox env 预过滤、JSONL audit 本地并发写 hash chain、显式 opt-in Docker sandbox backend preview、Docker backend CLI conformance、adapter payload fixtures、Docker stable candidate gate 和 E2E smoke 都已验证。覆盖范围包括 adapter、audit、policy、sandbox、platform、release manifest、Code/CI pilot、staging pilot、SQLite audit、tracing、11 个基于用户指南场景的 acceptance tests、复杂 production incident agent、未注册 direct execution 与 registered runtime execution 对比、complete runtime report、single-run screenshot、带业务上下文的完整运行过程 HTML、clean wheel install、Docker sandbox runtime/failure paths E2E、run view browser evidence，以及 provider/framework-agent tests。
+`207 passed` 表示当前测试套件全部通过，且真实 GLM provider integration、formal agent registry contract、registered agent deny-path、governed agent tracing、complete runtime report、agent run screenshot、run process viewer、complete-report scenario context、JSON beauty view、production incident agent、production incident registration comparison、provider retry/backoff、LangGraph optional framework agent、approval 默认拒绝、sandbox env 预过滤、JSONL audit 本地并发写 hash chain、显式 opt-in Docker sandbox backend preview、Docker backend CLI conformance、adapter payload fixtures、Docker stable candidate gate 和 E2E smoke 都已验证。覆盖范围包括 adapter、audit、policy、sandbox、platform、release manifest、Code/CI pilot、staging pilot、SQLite audit、tracing、11 个基于用户指南场景的 acceptance tests、复杂 production incident agent、未注册 direct execution 与 registered runtime execution 对比、complete runtime report、single-run screenshot、带业务上下文的完整运行过程 HTML、clean wheel install、Docker sandbox runtime/failure paths E2E、run view browser evidence，以及 provider/framework-agent tests。
 
 **结论**
 
@@ -606,19 +606,19 @@ observer 反映 staging pilot 中出现了 5 次 tool call、2 次 approval requ
 
 ### TC-013 Scenario-Based Acceptance
 
-场景测试单独维护在 [SCENARIO_TEST_REPORT.md](SCENARIO_TEST_REPORT.md)。综合测试报告只记录它作为回归套件的一部分被纳入 `python -m pytest`，并在 REQ-010 中保留追踪关系。
+场景测试单独维护在 [docs/reports/scenario-test-report.md](/docs/reports/scenario-test-report.md)。综合测试报告只记录它作为回归套件的一部分被纳入 `python -m pytest`，并在 REQ-010 中保留追踪关系。
 
 ### TC-013B E2E Smoke
 
-E2E smoke 测试单独维护在 [E2E_TEST_REPORT.md](E2E_TEST_REPORT.md)，测试计划维护在 [E2E_TEST_PLAN.md](E2E_TEST_PLAN.md)。综合测试报告只记录它作为回归套件的一部分被纳入 `python -m pytest`，并在测试设计第 15 层中保留追踪关系。
+E2E smoke 测试单独维护在 [docs/reports/e2e-test-report.md](/docs/reports/e2e-test-report.md)，测试计划维护在 [docs/test/e2e-test-plan.md](/docs/test/e2e-test-plan.md)。综合测试报告只记录它作为回归套件的一部分被纳入 `python -m pytest`，并在测试设计第 15 层中保留追踪关系。
 
 ### TC-014 Real-Agent Loop
 
-Real-agent loop 测试单独维护在 [REAL_AGENT_TEST_REPORT.md](REAL_AGENT_TEST_REPORT.md)。综合测试报告只记录它作为回归套件的一部分被纳入 `python -m pytest`，并在 REQ-011 和 REQ-017 中保留追踪关系。
+Real-agent loop 测试单独维护在 [docs/reports/real-agent-test-report.md](/docs/reports/real-agent-test-report.md)。综合测试报告只记录它作为回归套件的一部分被纳入 `python -m pytest`，并在 REQ-011 和 REQ-017 中保留追踪关系。
 
 ### TC-015 GLM/OpenAI-Compatible Provider Agent
 
-GLM/OpenAI-compatible provider agent 测试单独维护在 [REAL_AGENT_TEST_REPORT.md](REAL_AGENT_TEST_REPORT.md)，agent registration 对比测试详见 [PROVIDER_RUNTIME_COMPARISON_REPORT.md](PROVIDER_RUNTIME_COMPARISON_REPORT.md)。综合测试报告只记录它作为回归套件的一部分被纳入 `python -m pytest`，并在 REQ-012 中保留追踪关系。
+GLM/OpenAI-compatible provider agent 测试单独维护在 [docs/reports/real-agent-test-report.md](/docs/reports/real-agent-test-report.md)，agent registration 对比测试详见 [docs/reports/provider-runtime-comparison-report.md](/docs/reports/provider-runtime-comparison-report.md)。综合测试报告只记录它作为回归套件的一部分被纳入 `python -m pytest`，并在 REQ-012 中保留追踪关系。
 
 回归中，fake transport 覆盖真实 provider 的 `tool_calls` response shape，验证 agent 会解析 tool name 和 arguments 后交给 runtime。真实 GLM/Z.AI 外部调用由 `tests/test_provider_real_agent.py::test_glm_provider_agent_can_call_real_provider_when_key_is_configured` 覆盖；未注册 agent vs 注册 agent 对比由 `test_same_agent_registration_comparison_with_fake_provider` 和 `test_same_agent_unregistered_vs_registered_runtime_execution` 覆盖；formal agent registry contract 和 deny-path 由 `tests/test_agent_registry_contract.py` 覆盖；LangGraph optional framework agent 由 `tests/test_langgraph_agent_registration.py` 覆盖。
 

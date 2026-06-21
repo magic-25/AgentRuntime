@@ -11,15 +11,17 @@
 - JSONL audit sink 增加本地 advisory file lock，串行化单节点写入，避免并发写破坏 hash chain。
 - `ContainerSandboxBackend` 明确为 `container-plan-simulation`，conformance limitations 标出不执行真实 Docker container，降低开源用户误解风险。
 - 新增显式 opt-in 的 `DockerSandboxBackend` preview，使用本地 Docker daemon 执行 no-network/read-only/cap-drop command，并纳入 sandbox conformance。
-- CI 增加 `ruff check`、`pyright src`、certification、adapter replay 和 sandbox conformance，并新增 bug、feature、design partner feedback 和 security boundary issue templates。
+- CI 增加 `ruff check`、`pyright src`、distribution build/twine/sdist content check、certification、adapter replay 和 sandbox conformance，并新增 bug、feature、design partner feedback 和 security boundary issue templates。
 - 新增 `ROADMAP.md`，区分 Python package `0.x` 版本和内部 runtime contract gate。
-- 新增 `RELEASE_CHECKLIST.md`、`STAGING_VALIDATION_REPORT.md` 和 `ADAPTER_PAYLOAD_FIXTURES.md`，补齐 release、staging surrogate validation 和 provider payload fixture 证据。
+- 新增 `docs/release/release-checklist.md`、`docs/reports/staging-validation-report.md` 和 `docs/reference/adapter-payload-fixtures.md`，补齐 release、staging surrogate validation 和 provider payload fixture 证据。
 - 新增 OpenAI、Anthropic、LangGraph、MCP、Codex adapter payload fixture 回归测试，避免 adapter 只覆盖理想化 sample payload。
-- 新增 `E2E_TEST_PLAN.md`、`E2E_TEST_REPORT.md` 和 `tests/e2e/`，覆盖 clean wheel install、production incident run view、Docker sandbox runtime、complete report fake provider、Docker sandbox failure paths、run view browser evidence 和真实 provider 手工门禁。
+- 新增 `docs/test/e2e-test-plan.md`、`docs/reports/e2e-test-report.md` 和 `tests/e2e/`，覆盖 clean wheel install、production incident run view、Docker sandbox runtime、complete report fake provider、Docker sandbox failure paths、run view browser evidence 和真实 provider 手工门禁。
 - 新增 E2E 扩展 OPT 产物，覆盖 P0/P1/P2 spec、架构、交互、安全门禁、QA plan 和实现计划。
 - 新增 Runtime Core API 稳定化 OPT 产物，定义通用 agent execution session contract。
 - 新增 `AgentRunRequest` / `AgentRunResult`、`RegisteredAgent.run_session(...)` 和 `AgentRuntime.run_agent(...)`，支持任意 Python agent 输出包装为统一、可审计、可追踪的运行结果，同时保持旧 `run(...)` 兼容。
-- 更新 README、CONTRIBUTING、SECURITY、USER_GUIDE、TEST_REPORT 和 DESIGN_PARTNER_RUNBOOK，修复 fresh setup、测试证据和安全边界说明漂移。
+- 更新 README、CONTRIBUTING、SECURITY、docs/user-guide、docs/reports/test-report 和 docs/runbooks/design-partner-runbook，修复 fresh setup、测试证据和安全边界说明漂移。
+- 整理公开文档信息架构：根目录仅保留开源入口文档，报告、runbook、reference、release checklist 和 E2E plan 归入 `docs/`，并新增 `docs/README.md` 索引。
+- 新增 `MANIFEST.in`，发布 sdist 时排除 `tests/`、`.github/`、`docs/` 和 `roles/`，避免源码包混入内部验证材料。
 
 ## Technical Preview
 

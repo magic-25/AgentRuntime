@@ -1,3 +1,9 @@
+"""Reference and test agents for Agent Runtime validation.
+
+This package is shipped for examples, conformance checks, and design-partner
+walkthroughs. It is not part of the stable runtime API contract.
+"""
+
 from agent_runtime.testing.agents import (
     CodeCIAgentTranscript,
     CodeCIRealAgent,

@@ -3,7 +3,7 @@
 报告日期：2026-06-21  
 报告状态：公开测试报告  
 产品状态：Technical Preview  
-对应计划：[E2E_TEST_PLAN.md](E2E_TEST_PLAN.md)
+对应计划：[docs/test/e2e-test-plan.md](/docs/test/e2e-test-plan.md)
 
 ## 结论摘要
 
@@ -11,8 +11,8 @@
 
 核心证据：
 
-- E2E 自动化集合：`8 passed in 8.08s`
-- 全量回归集合：`203 passed in 34.75s`
+- E2E 自动化集合：`8 passed in 8.75s`
+- 全量回归集合：`207 passed in 40.22s`
 - CI 门禁：提交后由 GitHub Actions 运行 compile、lint、type check、full tests、E2E smoke、certification、adapter replay 和 sandbox conformance
 
 本报告覆盖七类端到端路径：
@@ -49,7 +49,7 @@
 | REQ-E2E-002 | 复杂 agent 在 runtime 中运行时必须能产出可审计运行视图 | production incident agent 作为复杂代理场景 | direct execution 与 registered runtime execution 可比较 | `examples/production_incident_comparison.py`、`src/agent_runtime/run_view.py` | E2E-002 | run view HTML 和 audit JSONL | verified |
 | REQ-E2E-003 | sandboxed command tool 必须能进入真实 Docker backend | Docker backend 是显式 opt-in preview | policy、sandbox、audit、trace 必须在同一路径中联动 | `DockerSandboxBackend`、runtime tool execution | E2E-003 | Docker stdout、audit、trace | verified |
 | REQ-E2E-004 | complete runtime report 必须能稳定生成多格式 artifact | fake provider mode 用于 CI 稳定性 | report 需要包含 scenario、治理摘要、trace 和 audit | `examples/complete_runtime_report.py` | E2E-004 | JSON、Markdown、HTML、PNG | verified |
-| REQ-E2E-005 | E2E coverage 必须有文档和 readiness gate | E2E 计划与测试文件要同步 | readiness test 阻止计划和文件漂移 | `E2E_TEST_PLAN.md`、`tests/test_e2e_readiness.py` | Readiness | readiness output | verified |
+| REQ-E2E-005 | E2E coverage 必须有文档和 readiness gate | E2E 计划与测试文件要同步 | readiness test 阻止计划和文件漂移 | `docs/test/e2e-test-plan.md`、`tests/test_e2e_readiness.py` | Readiness | readiness output | verified |
 | REQ-E2E-006 | 真实 provider key 路径必须可人工复跑且不能泄漏密钥 | 真实调用只作为 manual gate | `.env` ignored，artifact 不得包含 key | `.env.example`、complete report runner | E2E-MANUAL-001 | manual command | manual gate |
 | REQ-E2E-X-005 | registered agent 在 policy deny 时不得 fallback 到 direct execution | direct-only marker 只允许出现在 unregistered path | registered runtime deny 后不执行 direct tool | `examples/production_incident_comparison.py` | E2E-002 | `registered_deny_no_direct_fallback` | verified |
 | REQ-E2E-X-006 | Docker sandbox 必须覆盖关键失败路径 | Docker backend preview 不只验证 happy path | no-network、read-only、env allowlist、timeout 都通过 runtime/sandbox evidence 验证 | `DockerSandboxBackend` | E2E-005 | Docker failure output and audit | verified |
@@ -69,7 +69,7 @@ PYTHONPATH=src python -m pytest tests/e2e tests/test_e2e_readiness.py -q
 
 ```text
 ........                                                                 [100%]
-8 passed in 8.08s
+8 passed in 8.75s
 ```
 
 **输出解释**
@@ -305,7 +305,7 @@ PYTHONPATH=src python -m pytest tests/test_e2e_readiness.py -q
 
 **输出解释**
 
-`2 passed` 表示 `E2E_TEST_PLAN.md` 中声明的自动化和手工 E2E path 存在，P0/P1/P2 backlog 和 spec requirement ID 已同步，且自动化测试入口文件可找到。
+`2 passed` 表示 `docs/test/e2e-test-plan.md` 中声明的自动化和手工 E2E path 存在，P0/P1/P2 backlog 和 spec requirement ID 已同步，且自动化测试入口文件可找到。
 
 **结论**
 
@@ -377,7 +377,7 @@ PYTHONPATH=src python -m pytest -q
 **输出结果**
 
 ```text
-203 passed in 34.75s
+207 passed in 40.22s
 ```
 
 **输出解释**
@@ -394,7 +394,7 @@ PYTHONPATH=src python -m pytest -q
 - Docker E2E 依赖本地 Docker daemon；daemon 不可用时该用例会 skip。
 - HTML run view 当前以 artifact 存在性和关键内容检查为主，没有浏览器像素级视觉断言。
 - clean wheel install 验证本地 wheel artifact，不验证 PyPI 上传和跨平台安装矩阵。
-- 外部 design partner staging 场景仍需要按 [DESIGN_PARTNER_RUNBOOK.md](DESIGN_PARTNER_RUNBOOK.md) 复跑。
+- 外部 design partner staging 场景仍需要按 [docs/runbooks/design-partner-runbook.md](/docs/runbooks/design-partner-runbook.md) 复跑。
 - P1 adapter/framework、approval provider、并发 audit/trace 仍是 planned。
 - P2 sidecar、remote executor、staging 和长任务恢复仍是 deferred/manual。
 

@@ -13,7 +13,7 @@
 1. agent 做了什么。
 2. runtime 为什么允许、为什么拒绝、是否经过 approval、是否强隔离、是否可审计。
 
-本报告不是全量测试报告。全量测试见 [TEST_REPORT.md](TEST_REPORT.md)。场景 acceptance 见 [SCENARIO_TEST_REPORT.md](SCENARIO_TEST_REPORT.md)。真实 agent 夹具说明见 [REAL_AGENT_TEST_REPORT.md](REAL_AGENT_TEST_REPORT.md)。
+本报告不是全量测试报告。全量测试见 [docs/reports/test-report.md](/docs/reports/test-report.md)。场景 acceptance 见 [docs/reports/scenario-test-report.md](/docs/reports/scenario-test-report.md)。真实 agent 夹具说明见 [docs/reports/real-agent-test-report.md](/docs/reports/real-agent-test-report.md)。
 
 ## 如何复现
 
@@ -52,7 +52,7 @@ PYTHONPATH=src python examples/complete_runtime_report.py
 .agent-runtime/complete-report/*-audit.jsonl
 ```
 
-这些本地运行产物不提交。根目录的 `COMPLETE_REPORT.md` 只提交脱敏、稳定的体验摘要。
+这些本地运行产物不提交。`docs/reports/complete-report.md` 只提交脱敏、稳定的体验摘要。
 
 如果需要的是“某一个 agent 在 Agent Runtime 中运行时产生的截图”，运行：
 
@@ -419,4 +419,4 @@ agent_run
 
 ## 结论
 
-`COMPLETE_REPORT.md` 和 `examples/complete_runtime_report.py` 提供了一个完整、可复现、默认使用真实 provider API key 的体验入口。它展示 Agent Runtime 不只是让 agent 调用工具，而是把 agent 行为变成可治理、可解释、可审计的运行链路。
+`docs/reports/complete-report.md` 和 `examples/complete_runtime_report.py` 提供了一个完整、可复现、默认使用真实 provider API key 的体验入口。它展示 Agent Runtime 不只是让 agent 调用工具，而是把 agent 行为变成可治理、可解释、可审计的运行链路。

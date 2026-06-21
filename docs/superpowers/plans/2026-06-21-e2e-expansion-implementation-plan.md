@@ -17,8 +17,8 @@
   - `tests/e2e/test_run_view_browser_evidence_e2e.py`
   - optional `examples/real_provider_registered_runtime_e2e.py`
 - Modify:
-  - `E2E_TEST_PLAN.md`
-  - `E2E_TEST_REPORT.md`
+  - `docs/test/e2e-test-plan.md`
+  - `docs/reports/e2e-test-report.md`
   - `tests/e2e/test_production_incident_run_view_e2e.py`
   - `tests/test_e2e_readiness.py`
   - possibly `examples/complete_runtime_report.py`
@@ -46,7 +46,7 @@
    - reads `.env` / env only.
    - writes local `.agent-runtime` artifacts.
    - reports provider mode real and secret scan command.
-7. Update `E2E_TEST_REPORT.md` with new P0 outputs, explanations and residual risks.
+7. Update `docs/reports/e2e-test-report.md` with new P0 outputs, explanations and residual risks.
 8. Run verification and commit in focused batches.
 
 ## Reuse Strategy
@@ -59,13 +59,13 @@
 
 ## Traceability
 
-- REQ-E2E-X-001: `E2E_TEST_PLAN.md` P0/P1/P2 matrix and readiness test.
+- REQ-E2E-X-001: `docs/test/e2e-test-plan.md` P0/P1/P2 matrix and readiness test.
 - REQ-E2E-X-003: manual provider command and report section.
 - REQ-E2E-X-004/005: upgraded production incident E2E.
 - REQ-E2E-X-006: new Docker sandbox failure E2E.
 - REQ-E2E-X-007: new run view/browser evidence E2E.
 - REQ-E2E-X-008: secret scan and docs/report constraints.
-- REQ-E2E-X-013: updated `E2E_TEST_REPORT.md`。
+- REQ-E2E-X-013: updated `docs/reports/e2e-test-report.md`。
 
 ## Test Strategy
 

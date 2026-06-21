@@ -2,7 +2,7 @@
 
 本计划把 Agent Runtime 的端到端测试分成自动化 E2E、optional local E2E 和 manual E2E。默认 CI 只运行不需要密钥、不依赖外部 provider、不强制 Docker daemon 的路径。
 
-扩展 spec：[docs/superpowers/specs/2026-06-21-e2e-expansion-spec.md](docs/superpowers/specs/2026-06-21-e2e-expansion-spec.md)
+扩展 spec：[docs/superpowers/specs/2026-06-21-e2e-expansion-spec.md](/docs/superpowers/specs/2026-06-21-e2e-expansion-spec.md)
 
 ## Coverage Matrix
 
@@ -134,6 +134,6 @@ rg -n "(api[_-]?key|apikey|secret|token|password|sk-[A-Za-z0-9]|[A-Za-z0-9]{32,}
 - 自动 CI 不调用真实 provider。
 - 自动 CI 不强制 Docker daemon 存在。
 - 当前没有 browser rendering pixel test；HTML 只验证内容和 artifact 生成。
-- 外部 design partner 仍需用真实 staging service 复跑 `DESIGN_PARTNER_RUNBOOK.md`。
+- 外部 design partner 仍需用真实 staging service 复跑 `docs/runbooks/design-partner-runbook.md`。
 - P1 adapter/framework 和 approval/concurrency E2E 已列入 backlog，尚未 verified。
 - P2 sidecar、remote executor、staging 和长任务恢复仍是 deferred/manual。

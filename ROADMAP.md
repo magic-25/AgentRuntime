@@ -22,7 +22,7 @@ Agent Runtime 当前是 **Technical Preview**，Python package version 使用 `0
 
 ## 当前下一步
 
-- 用外部 design partner 场景复跑 `DESIGN_PARTNER_RUNBOOK.md`，当前仓库已提供 `STAGING_VALIDATION_REPORT.md` 作为 surrogate staging evidence。
+- 用外部 design partner 场景复跑 `docs/runbooks/design-partner-runbook.md`，当前仓库已提供 `docs/reports/staging-validation-report.md` 作为 surrogate staging evidence。
 - 扩展 OpenAI、Anthropic、LangGraph、MCP、Codex 的匿名真实 payload fixture；当前已有 `tests/fixtures/adapter_payloads/` 基线覆盖。
 - 发布 `v0.1.0` GitHub technical preview release；PyPI publish 需要项目 owner 的 PyPI API token。
 

@@ -15,26 +15,14 @@ Python 包版本使用 `0.x`，表示当前是开源 technical preview；`releas
 
 ## 项目文档
 
-- [用户指南：场景与概念](USER_GUIDE.md)
-- [Complete Report：完整运行体验](COMPLETE_REPORT.md)：使用真实 provider key 运行多个 agent，生成输出、治理证据、trace 和截图。
-- [测试报告](TEST_REPORT.md)
-- [场景测试报告](SCENARIO_TEST_REPORT.md)
-- [E2E 测试报告](E2E_TEST_REPORT.md)：安装、复杂 agent run view、Docker sandbox、complete report 和真实 provider 手工门禁。
-- [Real Agent 测试报告](REAL_AGENT_TEST_REPORT.md)：测试 agent 类型、职责和用例矩阵。
-- [Provider Agent Runtime 对比测试报告](PROVIDER_RUNTIME_COMPARISON_REPORT.md)：`glm-agent` 未注册 / 注册到 runtime 的执行过程对比。
-- [Agent Registry Contract](AGENT_REGISTRY_CONTRACT.md)
+- [用户指南：场景与概念](/docs/user-guide.md)
+- [Agent Registry Contract](/docs/reference/agent-registry-contract.md)
+- [Design Partner Runbook](/docs/runbooks/design-partner-runbook.md)
+- [测试与验证报告](/docs/reports/test-report.md)
 - [Roadmap：版本与阶段说明](ROADMAP.md)
-- [Release Checklist](RELEASE_CHECKLIST.md)
-- [E2E Test Plan](E2E_TEST_PLAN.md)
-- [Staging Validation Report](STAGING_VALIDATION_REPORT.md)
-- [Adapter Payload Fixtures](ADAPTER_PAYLOAD_FIXTURES.md)
-- [Design Partner Runbook](DESIGN_PARTNER_RUNBOOK.md)
-- [开源 Agent 采用评估](OPEN_SOURCE_AGENT_EVALUATION.md)
+- [文档索引](/docs/README.md)
 - [贡献指南](CONTRIBUTING.md)
 - [安全策略](SECURITY.md)
-- [行为准则](CODE_OF_CONDUCT.md)
-- [变更记录](CHANGELOG.md)
-- [开源许可证](LICENSE)
 
 ## 当前能力
 
@@ -298,7 +286,7 @@ PYTHONPATH=src python -m agent_runtime.cli.main audit verify --path .agent-runti
 | supported | core runtime contracts、policy config schema v1、approval provider interface、audit sink contract、observer metrics、adapter/sandbox conformance contracts |
 | stable candidate | OpenAI adapter、Anthropic adapter、LangGraph adapter、MCP adapter、Codex workspace adapter、container plan backend contract、control plane API |
 | preview | Codex workflow、platform integration contracts、sidecar backend、Docker sandbox backend |
-| experimental | Codex connectors、OpenTelemetry sink、HTTP API tool |
+| experimental | Codex connectors、OpenTelemetry sink、HTTP API tool、`agent_runtime.testing` reference agents |
 | beta | remote executor |
 | unsupported | hosted SaaS、hosted control plane、enterprise console、RBAC UI、absolute sandbox escape prevention |
 

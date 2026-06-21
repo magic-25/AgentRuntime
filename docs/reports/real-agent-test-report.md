@@ -7,7 +7,7 @@
 
 ## 结论摘要
 
-本报告覆盖两类 real-agent 测试。它和 [SCENARIO_TEST_REPORT.md](SCENARIO_TEST_REPORT.md) 的区别是：
+本报告覆盖两类 real-agent 测试。它和 [docs/reports/scenario-test-report.md](/docs/reports/scenario-test-report.md) 的区别是：
 
 - 场景测试验证用户指南里的场景合同是否可运行。
 - real-agent 测试验证 agent loop 会自己产生 tool call、拿到 runtime/pilot 结果后继续、停止或进入 blocked 状态。
@@ -378,7 +378,7 @@ export GLM_MODEL="glm-5.2"
 
 这证明即使不调用真实 provider，默认测试也能验证“同一个 agent 未注册 vs 注册”的核心 runtime 语义。
 
-详细报告见 [PROVIDER_RUNTIME_COMPARISON_REPORT.md](PROVIDER_RUNTIME_COMPARISON_REPORT.md)。
+详细报告见 [docs/reports/provider-runtime-comparison-report.md](/docs/reports/provider-runtime-comparison-report.md)。
 
 **结论**
 
@@ -402,7 +402,7 @@ export GLM_MODEL="glm-5.2"
 
 这比单独比较 tool call 更贴近真实生产使用方式：对比对象是同一个 agent 的完整执行过程，而不是单个 tool call。
 
-详细报告见 [PROVIDER_RUNTIME_COMPARISON_REPORT.md](PROVIDER_RUNTIME_COMPARISON_REPORT.md)。
+详细报告见 [docs/reports/provider-runtime-comparison-report.md](/docs/reports/provider-runtime-comparison-report.md)。
 
 **结论**
 

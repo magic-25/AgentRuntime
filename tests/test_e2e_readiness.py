@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 def test_e2e_plan_declares_required_paths():
-    plan = Path("E2E_TEST_PLAN.md").read_text(encoding="utf-8")
+    plan = Path("docs/test/e2e-test-plan.md").read_text(encoding="utf-8")
     spec = Path("docs/superpowers/specs/2026-06-21-e2e-expansion-spec.md").read_text(encoding="utf-8")
 
     assert "E2E-001" in plan

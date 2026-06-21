@@ -120,7 +120,8 @@ class ProductionIncidentAgent:
         results: list[ToolResult],
     ) -> ToolResult:
         decisions.append(f"call:{tool_name}")
-        assert self.runtime is not None
+        if self.runtime is None:
+            raise RuntimeError("runtime.required")
         result = self.runtime.call_tool(tool_name, tool_input, actor=self.actor, environment=self.environment)
         results.append(result)
         return result

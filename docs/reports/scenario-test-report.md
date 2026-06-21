@@ -7,7 +7,7 @@
 
 ## 结论摘要
 
-本报告只覆盖基于用户场景的 acceptance tests。它对应 [USER_GUIDE.md](USER_GUIDE.md) 中的 11 个场景，目标是验证用户文档里描述的场景能否用当前代码表达和运行。
+本报告只覆盖基于用户场景的 acceptance tests。它对应 [docs/user-guide.md](/docs/user-guide.md) 中的 11 个场景，目标是验证用户文档里描述的场景能否用当前代码表达和运行。
 
 本轮场景测试结论：11 个场景测试全部通过。
 
@@ -466,7 +466,7 @@ test_scenario_remote_executor_remains_contract_beta_not_production_ready
 
 场景测试已经独立成套，并纳入全量回归。它把用户指南里的 11 个场景转成可运行 acceptance tests，能持续防止文档描述和代码能力漂移。
 
-真实 agent loop 测试单独见 [REAL_AGENT_TEST_REPORT.md](REAL_AGENT_TEST_REPORT.md)。场景测试验证“场景合同”，real-agent 测试验证“agent 自己产生 tool call 并根据结果继续或停止”。
+真实 agent loop 测试单独见 [docs/reports/real-agent-test-report.md](/docs/reports/real-agent-test-report.md)。场景测试验证“场景合同”，real-agent 测试验证“agent 自己产生 tool call 并根据结果继续或停止”。
 
 下一步建议：
 

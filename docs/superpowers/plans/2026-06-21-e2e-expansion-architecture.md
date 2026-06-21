@@ -17,8 +17,8 @@ P0 E2E 扩展要验证真实 provider、registered runtime、policy deny、Docke
 - `src/agent_runtime/testing/`：复用测试 agent、fake provider、production incident agent 和 provider-style helper。
 - `src/agent_runtime_contrib/packs/sandbox/docker.py`：真实 Docker sandbox backend，只作为 preview backend 参与 E2E，不变成 stable candidate。
 - `src/agent_runtime/run_view.py`：run view HTML 生成和 browser validation 的输入。
-- `E2E_TEST_PLAN.md`：E2E backlog、依赖、CI/manual 状态和 requirement mapping。
-- `E2E_TEST_REPORT.md`：E2E 执行证据、输出解释和 residual risk。
+- `docs/test/e2e-test-plan.md`：E2E backlog、依赖、CI/manual 状态和 requirement mapping。
+- `docs/reports/e2e-test-report.md`：E2E 执行证据、输出解释和 residual risk。
 
 ## Data Flow
 
@@ -28,7 +28,7 @@ P0 E2E 扩展要验证真实 provider、registered runtime、policy deny、Docke
 4. approval、sandbox、executor、audit、trace 按现有 runtime 链路生成结果。
 5. E2E harness 收集 output、audit JSONL、trace events、run view HTML、complete report artifact。
 6. 自动化测试断言关键字段；手工门禁生成报告和 secret scan 输出。
-7. `E2E_TEST_REPORT.md` 记录用例设计、命令、输出结果、输出解释和结论。
+7. `docs/reports/e2e-test-report.md` 记录用例设计、命令、输出结果、输出解释和结论。
 
 ## Diagrams
 

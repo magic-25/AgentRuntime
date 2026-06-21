@@ -35,6 +35,23 @@ jobs:
       - name: Run tests
         run: python -m pytest -q
 
+      - name: Build distribution
+        run: |
+          rm -rf dist build
+          python -m build
+          python -m twine check dist/*
+          python - <<'PY'
+          import tarfile
+          from pathlib import Path
+
+          sdist = next(Path("dist").glob("*.tar.gz"))
+          with tarfile.open(sdist) as archive:
+              names = archive.getnames()
+          leaked_tests = [name for name in names if "/tests/" in name or name.endswith("/tests")]
+          if leaked_tests:
+              raise SystemExit(f"sdist should not contain tests: {leaked_tests[:5]}")
+          PY
+
       - name: Run E2E smoke tests
         run: PYTHONPATH=src python -m pytest tests/e2e -q
 

@@ -40,7 +40,7 @@
 
 ## 任务 4：文档同步
 
-- 更新 `AGENT_REGISTRY_CONTRACT.md`。
+- 更新 `docs/reference/agent-registry-contract.md`。
 - 更新 `README.md` 当前能力。
 - 更新 `CHANGELOG.md`。
 
