@@ -19,7 +19,7 @@ def _truncate(value: str, limit_bytes: int) -> str:
 
 
 class ContainerSandboxBackend(SandboxExecutor):
-    backend_name = "container-simulation"
+    backend_name = "container-plan-simulation"
     backend_version = "1.2.0"
     support_level = "stable_candidate"
     available = True
@@ -40,7 +40,7 @@ class ContainerSandboxBackend(SandboxExecutor):
         except SandboxViolationError as error:
             return ProcessResult(exit_code=126, stdout="", stderr=str(error))
         stdout = (
-            f"container simulation: argv={plan.argv!r} "
+            f"container plan simulation: argv={plan.argv!r} "
             f"cwd={str(plan.cwd)!r} network_access={str(plan.network_access).lower()}"
         )
         return ProcessResult(

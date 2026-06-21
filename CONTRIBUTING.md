@@ -21,19 +21,19 @@
 
 ## 开发环境
 
-源码模式：
-
-```bash
-python -m pytest
-PYTHONPATH=src python examples/minimal_agent.py
-```
-
-editable install 模式：
+首次克隆后推荐使用 editable install，并安装开发依赖：
 
 ```bash
 python -m venv .venv
 . .venv/bin/activate
-python -m pip install -e .
+python -m pip install -e ".[dev]"
+python -m pytest
+python examples/minimal_agent.py
+```
+
+只验证 CLI 初始化和配置校验：
+
+```bash
 agent-runtime init --path agent-runtime.json
 agent-runtime validate --path agent-runtime.json
 ```
@@ -44,6 +44,9 @@ agent-runtime validate --path agent-runtime.json
 
 ```bash
 python -m pytest
+python -m compileall -q src examples
+python -m ruff check .
+python -m pyright src
 PYTHONPATH=src python -m agent_runtime.cli.main certify run --subject all
 PYTHONPATH=src python -m agent_runtime.cli.main adapter replay --scenario code-ci --adapter openai --adapter langgraph --adapter codex
 ```
@@ -52,6 +55,7 @@ PYTHONPATH=src python -m agent_runtime.cli.main adapter replay --scenario code-c
 
 ```bash
 PYTHONPATH=src python -m agent_runtime.cli.main sandbox conformance --backend container --dry-run
+PYTHONPATH=src python -m agent_runtime.cli.main sandbox conformance --backend docker --dry-run
 PYTHONPATH=src python -m agent_runtime.cli.main sandbox conformance --backend sidecar --dry-run
 PYTHONPATH=src python -m agent_runtime.cli.main sandbox conformance --backend remote --dry-run
 ```
@@ -69,7 +73,9 @@ Docker smoke 只证明当前环境可以执行 no-network/read-only/cap-drop smo
 - 保持工具调用链路经过 `ToolCall -> Context Filter -> Policy Engine -> Approval Gate -> Executor -> Result Filter -> Audit`。
 - adapter 只做 provider/tool-call shape 翻译，不授予 capability，不直接绕过 runtime 执行工具。
 - optional pack 默认 disabled，必须 explicit allowlist。
+- `require_approval` 没有显式 approval provider 时必须 reject，不应默认批准。
 - 高风险 prod command tool 必须使用 `sandboxed_command_tool` 和宿主注入的强隔离 sandbox backend。
+- sandbox backend 收到的 env 必须已经按 allowlist 裁剪，不应接触未授权 secret。
 - backend 不可用时应 fail closed，不应退回普通 subprocess。
 - 新增稳定候选能力时必须补 conformance evidence 和测试引用。
 
@@ -90,3 +96,11 @@ PR 描述建议包含：
 - 运行过的验证命令。
 - 已知限制和回滚方式。
 
+## Issue 建议
+
+请优先使用仓库内的 GitHub issue templates：
+
+- Bug report：可复现 bug。
+- Feature request：能力、contract、adapter 或 workflow 改进。
+- Design partner feedback：不含敏感信息的 pilot/staging 反馈。
+- Security boundary question：公开讨论边界问题；真实漏洞请按 `SECURITY.md` 私下报告。

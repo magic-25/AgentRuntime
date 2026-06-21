@@ -7,6 +7,7 @@ from typing import Any
 
 from agent_runtime.execution.sandbox import SandboxCommandSpec, SandboxUnavailableError
 from agent_runtime_contrib.packs.sandbox.container import ContainerSandboxBackend
+from agent_runtime_contrib.packs.sandbox.docker import DockerSandboxBackend
 from agent_runtime_contrib.packs.sandbox.remote import RemoteSandboxBackend
 from agent_runtime_contrib.packs.sandbox.sidecar import LocalSidecarClient, SidecarSandboxBackend
 
@@ -39,10 +40,12 @@ class SandboxConformanceRunner:
     def run_backend(self, backend: Any) -> SandboxConformanceReport:
         checks = ["metadata_valid"]
         failure_reasons: list[str] = []
-        limitations = _limitations_for(getattr(backend, "support_level", "unknown"))
+        limitations = _limitations_for_backend(backend)
 
         if isinstance(backend, ContainerSandboxBackend):
             checks.extend(_run_container_abuse_checks(backend, failure_reasons))
+        elif isinstance(backend, DockerSandboxBackend):
+            checks.extend(_run_docker_contract_checks(backend, failure_reasons))
         elif isinstance(backend, SidecarSandboxBackend):
             checks.append("sidecar.request_response")
             try:
@@ -69,6 +72,8 @@ class SandboxConformanceRunner:
 def backend_for_name(name: str) -> Any:
     if name == "container":
         return ContainerSandboxBackend()
+    if name == "docker":
+        return DockerSandboxBackend()
     if name == "sidecar":
         return SidecarSandboxBackend(client=LocalSidecarClient())
     if name == "remote":
@@ -126,6 +131,17 @@ def _run_container_abuse_checks(backend: ContainerSandboxBackend, failure_reason
     return checks
 
 
+def _run_docker_contract_checks(backend: DockerSandboxBackend, failure_reasons: list[str]) -> list[str]:
+    checks = ["docker.real_execution_contract"]
+    with TemporaryDirectory() as raw_tmp:
+        root = Path(raw_tmp)
+        network_result = backend.execute(SandboxCommandSpec(argv=["curl", "https://example.com"], cwd=str(root), network_access=True))
+        checks.append("abuse.network_attempt")
+        if network_result.exit_code == 0:
+            failure_reasons.append("network.allowed")
+    return checks
+
+
 def _public_backend_name(backend: Any) -> str:
     metadata = getattr(backend, "metadata", None)
     if metadata is not None:
@@ -133,9 +149,21 @@ def _public_backend_name(backend: Any) -> str:
     return getattr(backend, "backend_name", "unknown")
 
 
-def _limitations_for(support_level: str) -> list[str]:
-    if support_level == "stable_candidate":
-        return ["container_trusted_base_required", "no_absolute_escape_prevention"]
+def _limitations_for_backend(backend: Any) -> list[str]:
+    if isinstance(backend, ContainerSandboxBackend):
+        return [
+            "container_plan_only_no_real_docker_execution",
+            "container_trusted_base_required",
+            "no_absolute_escape_prevention",
+        ]
+    if isinstance(backend, DockerSandboxBackend):
+        return [
+            "docker_real_execution_requires_local_daemon",
+            "container_trusted_base_required",
+            "no_absolute_escape_prevention",
+            "host_docker_security_baseline_required",
+        ]
+    support_level = getattr(backend, "support_level", "unknown")
     if support_level == "preview":
         return ["minimal_sidecar_contract_only", "no_production_scheduler"]
     if support_level == "contract_beta":

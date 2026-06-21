@@ -23,7 +23,7 @@ def test_complete_runtime_report_generates_multi_agent_runtime_outputs(tmp_path)
 
     assert report["report_type"] == "complete_runtime_report"
     assert report["product"] == "Agent Runtime"
-    assert report["summary"]["scenario_count"] == 5
+    assert report["summary"]["scenario_count"] == 6
     assert report["summary"]["provider_mode"] == "fake"
     assert report["summary"]["questions_answered"] == [
         "agent做了什么",
@@ -37,6 +37,7 @@ def test_complete_runtime_report_generates_multi_agent_runtime_outputs(tmp_path)
         "policy_deny",
         "approval_gate",
         "sandboxed_command",
+        "production_incident",
     }
 
     assert scenarios["scripted_echo"]["transcript"]["status"] == "completed"
@@ -59,6 +60,24 @@ def test_complete_runtime_report_generates_multi_agent_runtime_outputs(tmp_path)
     assert scenarios["sandboxed_command"]["governance"]["sandbox"]["isolation_level"] == "strong"
     assert scenarios["sandboxed_command"]["governance"]["sandbox"]["backend"] == "complete-report-sandbox"
     assert scenarios["sandboxed_command"]["trace"]["contains"]["sandbox_execution"] is True
+
+    assert scenarios["production_incident"]["agent"]["framework"] == "state-machine-python"
+    assert scenarios["production_incident"]["transcript"]["status"] == "completed_with_denial"
+    assert scenarios["production_incident"]["transcript"]["phases"] == [
+        "intake",
+        "investigate",
+        "diagnose",
+        "remediate",
+        "guardrail",
+        "summarize",
+    ]
+    assert scenarios["production_incident"]["transcript"]["findings"]["impact"] == "checkout-api degraded in us-east-1"
+    assert scenarios["production_incident"]["transcript"]["remediation"]["approved_action"] == "rollback"
+    assert scenarios["production_incident"]["transcript"]["remediation"]["blocked_action"] == "apply_hotfix"
+    assert len(scenarios["production_incident"]["tool_results"]) == 6
+    assert scenarios["production_incident"]["governance"]["approval"]["approved"] is True
+    assert scenarios["production_incident"]["governance"]["sandbox"]["isolation_level"] == "strong"
+    assert scenarios["production_incident"]["governance"]["policy"]["decision"] == "deny"
 
     for scenario in scenarios.values():
         assert scenario["trace"]["trace_id"]

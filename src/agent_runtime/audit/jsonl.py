@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+import contextlib
 import json
+import threading
 from pathlib import Path
 from typing import Any
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - exercised only on non-POSIX platforms.
+    fcntl = None  # type: ignore[assignment]
 
 from agent_runtime.core.models import AuditEvent
 from agent_runtime.audit.hash_chain import attach_event_hash
@@ -10,6 +17,8 @@ from agent_runtime.guard.redaction import redact_secrets
 
 
 class JsonlAuditSink:
+    _fallback_lock = threading.Lock()
+
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
 
@@ -17,9 +26,10 @@ class JsonlAuditSink:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         payload = event.to_dict() if isinstance(event, AuditEvent) else event
         redacted = redact_secrets(payload)
-        redacted = attach_event_hash(redacted, self._last_event_hash())
-        with self.path.open("a", encoding="utf-8") as file:
-            file.write(json.dumps(redacted, ensure_ascii=False, sort_keys=True) + "\n")
+        with self._locked_writer():
+            redacted = attach_event_hash(redacted, self._last_event_hash())
+            with self.path.open("a", encoding="utf-8") as file:
+                file.write(json.dumps(redacted, ensure_ascii=False, sort_keys=True) + "\n")
 
     def _last_event_hash(self) -> str | None:
         if not self.path.exists():
@@ -28,3 +38,18 @@ class JsonlAuditSink:
         if not lines:
             return None
         return json.loads(lines[-1]).get("event_hash")
+
+    @contextlib.contextmanager
+    def _locked_writer(self):
+        lock_path = self.path.with_suffix(self.path.suffix + ".lock")
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        if fcntl is None:
+            with self._fallback_lock:
+                yield
+            return
+        with lock_path.open("a", encoding="utf-8") as lock_file:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import shutil
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +14,7 @@ from agent_runtime.core.models import ToolResult
 from agent_runtime.core.runtime import AgentRuntime
 from agent_runtime.execution.base import ProcessResult
 from agent_runtime.execution.sandbox import SandboxExecutor
+from agent_runtime.testing.production_agents import ProductionIncidentAgent
 from agent_runtime.testing.provider_agents import OpenAICompatibleToolCallingAgent, create_glm_tool_calling_agent_from_env
 
 
@@ -96,6 +97,7 @@ def build_complete_report(
         _run_policy_deny(output_path),
         _run_approval_gate(output_path),
         _run_sandboxed_command(output_path),
+        _run_production_incident(output_path),
     ]
     report = {
         "report_type": "complete_runtime_report",
@@ -326,6 +328,93 @@ def _run_sandboxed_command(output_path: Path) -> dict[str, Any]:
     )
 
 
+def _run_production_incident(output_path: Path) -> dict[str, Any]:
+    runtime, audit_path = _runtime(
+        output_path,
+        "production_incident",
+        [
+            {"id": "allow-status", "environment": "prod", "effect": "allow", "capabilities": ["tool.invoke:read_deployment_status"]},
+            {"id": "allow-logs", "environment": "prod", "effect": "allow", "capabilities": ["tool.invoke:inspect_error_logs"]},
+            {"id": "allow-flag", "environment": "prod", "effect": "allow", "capabilities": ["tool.invoke:query_feature_flag"]},
+            {"id": "allow-diagnostics", "environment": "prod", "effect": "allow", "capabilities": ["tool.invoke:run_diagnostics"]},
+            {"id": "allow-python-diagnostics", "environment": "prod", "effect": "allow", "capabilities": ["command.execute:python"]},
+            {"id": "approve-rollback", "environment": "prod", "effect": "require_approval", "capabilities": ["tool.invoke:propose_rollback"]},
+            {"id": "deny-hotfix", "environment": "prod", "effect": "deny", "capabilities": ["tool.invoke:apply_hotfix"]},
+        ],
+        approval_provider=StaticApprovalProvider(approved=True, reason="incident-commander-approved"),
+        sandbox_executor=CompleteReportSandbox(),
+    )
+
+    @runtime.tool(name="read_deployment_status")
+    def read_deployment_status(service: str) -> dict[str, str]:
+        return {"service": service, "version": "2026.06.21.3", "status": "degraded", "region": "us-east-1"}
+
+    @runtime.tool(name="inspect_error_logs")
+    def inspect_error_logs(service: str, window_minutes: int) -> dict[str, Any]:
+        return {
+            "service": service,
+            "window_minutes": window_minutes,
+            "signals": ["5xx_spike", "checkout_timeout", "dependency_latency"],
+        }
+
+    @runtime.tool(name="query_feature_flag")
+    def query_feature_flag(flag: str) -> dict[str, Any]:
+        return {"flag": flag, "enabled": True, "rollout": 90}
+
+    runtime.sandboxed_command_tool(
+        name="run_diagnostics",
+        argv=["python", "-c", "print('diagnostic=latency_spike')"],
+        cwd=str(output_path),
+        capabilities_required=["tool.invoke:run_diagnostics", "command.execute:python"],
+        network_access=False,
+        read_paths=[str(output_path)],
+        write_paths=[],
+    )
+
+    @runtime.tool(name="propose_rollback", risk_level="high")
+    def propose_rollback(service: str, target_version: str, reason: str) -> dict[str, str]:
+        return {"service": service, "target_version": target_version, "reason": reason, "ticket": "INC-2026-0621"}
+
+    @runtime.tool(name="apply_hotfix", risk_level="critical")
+    def apply_hotfix(service: str, patch_id: str) -> dict[str, str]:
+        return {"service": service, "patch_id": patch_id, "status": "applied"}
+
+    agent = ProductionIncidentAgent(service="checkout-api", feature_flag="new_checkout_router")
+    transcript = runtime.register_agent(
+        "production-incident-agent",
+        agent,
+        actor={"id": "incident-agent", "role": "sre"},
+        environment="prod",
+        metadata=_metadata(
+            "production-incident-agent",
+            "Production Incident Agent",
+            provider="local",
+            framework="state-machine-python",
+            capabilities=[
+                "tool.invoke:read_deployment_status",
+                "tool.invoke:inspect_error_logs",
+                "tool.invoke:query_feature_flag",
+                "tool.invoke:run_diagnostics",
+                "command.execute:python",
+                "tool.invoke:propose_rollback",
+                "tool.invoke:apply_hotfix",
+            ],
+            environment="prod",
+            sandbox_required=True,
+            approval_required=True,
+            max_tool_calls=6,
+        ),
+    ).run("Investigate checkout production latency and propose the safest mitigation.")
+    return _scenario(
+        "production_incident",
+        "Production Incident Agent",
+        "Shows a production-grade incident loop with investigation, diagnosis, approval, sandboxing, explicit deny, and summary.",
+        "investigate checkout production latency",
+        transcript,
+        audit_path,
+    )
+
+
 def _runtime(
     output_path: Path,
     name: str,
@@ -359,6 +448,7 @@ def _metadata(
     environment: str = "dev",
     sandbox_required: bool = False,
     approval_required: bool = False,
+    max_tool_calls: int = 1,
 ) -> AgentMetadata:
     return AgentMetadata(
         agent_id=agent_id,
@@ -369,7 +459,7 @@ def _metadata(
         runtime_profile=RuntimeProfile(
             environment=environment,
             execution_mode="runtime_tools",
-            max_tool_calls=1,
+            max_tool_calls=max_tool_calls,
             sandbox_required=sandbox_required,
             approval_required=approval_required,
         ),
@@ -432,6 +522,15 @@ def _transcript_summary(transcript: Any) -> dict[str, Any]:
     if raw_tool_name is not None:
         summary["raw_tool_name"] = raw_tool_name
         summary["raw_arguments"] = getattr(transcript, "raw_arguments", {})
+    phases = getattr(transcript, "phases", None)
+    if phases is not None:
+        summary["phases"] = list(phases)
+    findings = getattr(transcript, "findings", None)
+    if findings is not None:
+        summary["findings"] = findings
+    remediation = getattr(transcript, "remediation", None)
+    if remediation is not None:
+        summary["remediation"] = remediation
     return summary
 
 
@@ -510,7 +609,7 @@ def _trace_summary(events: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def _payload_for(events: list[dict[str, Any]], event_type: str, span_kind: str) -> dict[str, Any]:
-    for event in events:
+    for event in reversed(events):
         payload = event.get("payload", {})
         if event["event_type"] == event_type and payload.get("span_kind") == span_kind:
             return payload

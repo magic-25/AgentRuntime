@@ -135,7 +135,10 @@ class AgentRuntime:
     ) -> None:
         self.config = config
         self.registry = ToolRegistry()
-        self.approval_provider = approval_provider or StaticApprovalProvider(approved=True)
+        self.approval_provider = approval_provider or StaticApprovalProvider(
+            approved=False,
+            reason="approval_provider.missing",
+        )
         self.policy_hook = policy_hook
         self.observer = observer
         audit_config = config.get("audit", {})
@@ -546,7 +549,7 @@ class AgentRuntime:
                     self._observe_result(result)
                     return result
             if not approval.approved:
-                error = "approval.timeout" if approval.timed_out else "approval_rejected"
+                error = "approval.timeout" if approval.timed_out else approval.reason or "approval_rejected"
                 result = ToolResult(
                     tool_call_id=call.tool_call_id,
                     status="rejected",
@@ -590,15 +593,15 @@ class AgentRuntime:
                     return result
                 sandbox_span_id = f"span_{uuid4().hex}"
                 sandbox_started_at = perf_counter()
+                sandbox_payload = {
+                    "span_kind": "sandbox_execution",
+                    "parent_span_id": call.span_id,
+                    "isolation_level": "strong",
+                    "backend": self.sandbox_executor.backend_name,
+                    "available": self.sandbox_executor.available,
+                    **metadata,
+                }
                 if self._tracing_enabled():
-                    sandbox_payload = {
-                        "span_kind": "sandbox_execution",
-                        "parent_span_id": call.span_id,
-                        "isolation_level": "strong",
-                        "backend": self.sandbox_executor.backend_name,
-                        "available": self.sandbox_executor.available,
-                        **metadata,
-                    }
                     if not self._audit_trace_span_for_call(
                         "TraceSpanStarted",
                         call,
@@ -912,7 +915,7 @@ class AgentRuntime:
             SandboxCommandSpec(
                 argv=command["argv"],
                 cwd=command["cwd"],
-                env=command["env"],
+                env=self._filtered_env(command["env"], command["env_allowlist"]),
                 env_allowlist=command["env_allowlist"],
                 timeout_ms=command["timeout_ms"],
                 stdout_limit_bytes=command["stdout_limit_bytes"],
@@ -924,6 +927,9 @@ class AgentRuntime:
             )
         )
         return {"exit_code": result.exit_code, "stdout": result.stdout, "stderr": result.stderr}
+
+    def _filtered_env(self, env: dict[str, str], env_allowlist: list[str]) -> dict[str, str]:
+        return {key: env[key] for key in env_allowlist if key in env}
 
     def _sandbox_requirement_error(self, definition: Any, environment: str) -> str | None:
         if environment == "prod" and definition.executor_kind == "subprocess" and definition.risk_level == "high":

@@ -48,6 +48,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     status_parser = observe_subcommands.add_parser("status")
     status_parser.add_argument("--path", default=".agent-runtime/observer.json")
 
+    run_parser = subcommands.add_parser("run")
+    run_subcommands = run_parser.add_subparsers(dest="run_command", required=True)
+    run_view_parser = run_subcommands.add_parser("view")
+    run_view_parser.add_argument("--audit", required=True)
+    run_view_parser.add_argument("--output", required=True)
+    run_view_parser.add_argument("--snapshot")
+    run_view_parser.add_argument("--report")
+    run_view_parser.add_argument("--scenario")
+
     policy_parser = subcommands.add_parser("policy")
     policy_subcommands = policy_parser.add_subparsers(dest="policy_command", required=True)
     debug_parser = policy_subcommands.add_parser("debug")
@@ -103,7 +112,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     sandbox_parser = subcommands.add_parser("sandbox")
     sandbox_subcommands = sandbox_parser.add_subparsers(dest="sandbox_command", required=True)
     sandbox_conformance_parser = sandbox_subcommands.add_parser("conformance")
-    sandbox_conformance_parser.add_argument("--backend", choices=["container", "sidecar", "remote"], required=True)
+    sandbox_conformance_parser.add_argument("--backend", choices=["container", "docker", "sidecar", "remote"], required=True)
     sandbox_conformance_parser.add_argument("--dry-run", action="store_true")
     sandbox_evidence_parser = sandbox_subcommands.add_parser("evidence")
     sandbox_evidence_parser.add_argument("--backend", choices=["container"], required=True)
@@ -169,6 +178,19 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"observer status not found: {args.path}")
             return 1
         print(json.dumps(status, ensure_ascii=False, sort_keys=True))
+        return 0
+
+    if args.command == "run" and args.run_command == "view":
+        from agent_runtime.run_view import load_scenario_snapshot, write_run_view_html
+
+        snapshot = args.snapshot
+        if args.report or args.scenario:
+            if not args.report or not args.scenario:
+                print("run view requires both --report and --scenario when loading report context")
+                return 1
+            snapshot = load_scenario_snapshot(args.report, args.scenario)
+        result = write_run_view_html(args.audit, args.output, snapshot=snapshot)
+        print(json.dumps(result, ensure_ascii=False, sort_keys=True))
         return 0
 
     if args.command == "policy" and args.policy_command == "debug":

@@ -9,6 +9,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from agent_runtime import AgentMetadata, RuntimeProfile
 from agent_runtime.core.runtime import AgentRuntime
+from agent_runtime.run_view import write_run_view_html
 from agent_runtime.testing.provider_agents import OpenAICompatibleToolCallingAgent, create_glm_tool_calling_agent_from_env
 
 
@@ -104,9 +105,11 @@ def build_agent_run_screenshot(
 
     json_path = output_path / "real-provider-agent-run.json"
     html_path = output_path / "real-provider-agent-run.html"
+    run_view_path = output_path / "real-provider-agent-run-view.html"
     png_path = output_path / "real-provider-agent-run.png"
     json_path.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2), encoding="utf-8")
     html_path.write_text(_render_html(snapshot), encoding="utf-8")
+    write_run_view_html(audit_path, run_view_path, snapshot=snapshot)
     _render_png(snapshot, png_path)
     return snapshot
 
@@ -345,6 +348,7 @@ def main() -> None:
                 "provider_mode": snapshot["provider_mode"],
                 "status": snapshot["transcript"]["status"],
                 "screenshot": str(output_path / "real-provider-agent-run.png"),
+                "run_view": str(output_path / "real-provider-agent-run-view.html"),
             },
             ensure_ascii=False,
         )

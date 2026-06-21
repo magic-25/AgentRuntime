@@ -1,0 +1,56 @@
+name: Bug report
+description: Report a reproducible Agent Runtime bug.
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include API keys, customer data, production credentials, or exploit details.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Minimal reproduction
+      description: Provide commands, config snippets, and expected/actual behavior.
+      placeholder: |
+        1. Run ...
+        2. Expected ...
+        3. Actual ...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - runtime-core
+        - policy
+        - approval
+        - audit
+        - sandbox
+        - adapter
+        - CLI
+        - documentation
+        - other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: "0.1.0 or commit SHA"
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification run
+      description: What test or command did you run?
+      placeholder: "python -m pytest -q"

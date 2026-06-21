@@ -1,7 +1,6 @@
 from agent_runtime.approval.base import CallbackApprovalProvider
 from agent_runtime.cli.main import main
 from agent_runtime.core.models import ApprovalDecision
-from agent_runtime.core.runtime import AgentRuntime
 
 
 def test_callback_approval_provider_can_approve_reject_and_timeout():

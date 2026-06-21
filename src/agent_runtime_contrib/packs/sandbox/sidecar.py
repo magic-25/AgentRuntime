@@ -9,7 +9,7 @@ from agent_runtime_contrib.packs.base import PackMetadata
 
 class SidecarClient(Protocol):
     def run(self, spec: SandboxCommandSpec) -> ProcessResult:
-        pass
+        ...
 
 
 class LocalSidecarClient:

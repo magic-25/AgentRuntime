@@ -41,8 +41,14 @@ def test_agent_run_screenshot_captures_single_runtime_agent_run(tmp_path):
 
     json_path = tmp_path / "real-provider-agent-run.json"
     html_path = tmp_path / "real-provider-agent-run.html"
+    run_view_path = tmp_path / "real-provider-agent-run-view.html"
     screenshot_path = tmp_path / "real-provider-agent-run.png"
     assert json.loads(json_path.read_text(encoding="utf-8"))["tool_result"] == snapshot["tool_result"]
     assert "Provider Agent Run" in html_path.read_text(encoding="utf-8")
+    run_view_html = run_view_path.read_text(encoding="utf-8")
+    assert "完整运行过程可视化" in run_view_html
+    assert "Execution Timeline" in run_view_html
+    assert "Trace Tree" in run_view_html
+    assert "runtime screenshot" in run_view_html
     assert screenshot_path.exists()
     assert screenshot_path.stat().st_size > 0

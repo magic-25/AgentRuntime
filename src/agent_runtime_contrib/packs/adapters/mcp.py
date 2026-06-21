@@ -26,7 +26,7 @@ class MCPAdapterPack(TranslateOnlyAdapterPack):
 
     def discover(self, payload: dict[str, Any]) -> AdapterDiscovery:
         tools = payload.get("tools", [])
-        names = [item.get("name") for item in tools if isinstance(item, dict) and item.get("name")]
+        names = [item["name"] for item in tools if isinstance(item, dict) and isinstance(item.get("name"), str)]
         return AdapterDiscovery(tool_names=names)
 
     def sample_payload(self) -> dict:

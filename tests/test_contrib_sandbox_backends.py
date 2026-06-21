@@ -12,8 +12,9 @@ def test_container_backend_simulation_defaults_to_network_deny(tmp_path):
 
     result = backend.execute(spec)
 
-    assert backend.backend_name == "container-simulation"
+    assert backend.backend_name == "container-plan-simulation"
     assert result.exit_code == 0
+    assert "container plan simulation" in result.stdout
     assert "network_access=false" in result.stdout
 
 

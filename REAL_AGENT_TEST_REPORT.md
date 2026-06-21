@@ -1,6 +1,6 @@
 # Agent Runtime Real Agent 测试报告
 
-报告日期：2026-06-18
+报告日期：2026-06-21
 报告状态：公开测试报告  
 产品状态：Technical Preview  
 下一门禁：Design Partner Pilot
@@ -27,18 +27,18 @@
 
 | 项目 | 值 |
 | --- | --- |
-| 测试工具 | `src/agent_runtime/testing/agents.py`，`src/agent_runtime/testing/provider_agents.py` |
-| 测试文件 | `tests/test_real_agent_scenarios.py`，`tests/test_provider_real_agent.py` |
-| 默认执行命令 | `python -m pytest tests/test_real_agent_scenarios.py tests/test_provider_real_agent.py -q` |
+| 测试工具 | `src/agent_runtime/testing/agents.py`，`src/agent_runtime/testing/provider_agents.py`，`src/agent_runtime/testing/production_agents.py` |
+| 测试文件 | `tests/test_real_agent_scenarios.py`，`tests/test_provider_real_agent.py`，`tests/test_production_incident_agent.py`，`tests/test_production_incident_comparison_example.py` |
+| 默认执行命令 | `python -m pytest tests/test_real_agent_scenarios.py tests/test_provider_real_agent.py tests/test_production_incident_agent.py tests/test_production_incident_comparison_example.py -q` |
 | 真实 GLM provider 命令 | 设置 `GLM_API_KEY` 或 `ZAI_API_KEY` 后运行 `python -m pytest tests/test_provider_real_agent.py::test_glm_provider_agent_can_call_real_provider_when_key_is_configured -q` |
-| 本地 `.env` 用例数量 | 19 passed |
+| 本地 `.env` 用例数量 | 18 passed |
 | 结果 | 默认无 key 时真实 provider 测试跳过；本地 `.env` 有 key 时真实 provider 测试通过 |
 
 ## 测试输出
 
 ```text
-...................                                                      [100%]
-19 passed in 28.86s
+..................                                                       [100%]
+18 passed in 28.09s
 ```
 
 ## Agent 类型
@@ -51,6 +51,7 @@
 | `MCPStyleRealAgent` | 生成 MCP-style tool call，经 MCP adapter 翻译后进入 runtime | 无 |
 | `OpenAICompatibleToolCallingAgent` | 构造 OpenAI-compatible chat/completions 请求，解析 provider 返回的 `tool_calls`，再交给 runtime 执行 | 默认无；真实 GLM integration 需要 `GLM_API_KEY` 或 `ZAI_API_KEY` |
 | `LangGraphToolCallingAgent` | 执行 LangGraph graph，由 graph 选择 tool call，再对比未注册 direct execution 和注册后 runtime execution | optional `langgraph` |
+| `ProductionIncidentAgent` | 模拟生产 incident 排障 agent，执行多阶段 plan / act / observe loop，并支持 direct 与 registered 对比 | 无 |
 
 ## 测试 Agent 说明
 
@@ -64,6 +65,20 @@
 | `MCPStyleRealAgent` | MCP tool-calling agent | 生成 MCP-style payload，经 MCP adapter 翻译后进入 runtime | 验证 MCP adapter 只翻译、不授权、不执行 |
 | `OpenAICompatibleToolCallingAgent` | 真实 provider tool-calling agent | 向 GLM/Z.AI 或 fake OpenAI-compatible transport 发起 chat/completions 请求，解析 `tool_calls`，再决定走 runtime 或 direct tool | 验证真实 LLM provider 产生的 tool call 是否能被 runtime 治理 |
 | `LangGraphToolCallingAgent` | LangGraph framework agent | 调用已编译 LangGraph `StateGraph`，读取 graph 输出的 tool name 和 arguments | 验证 framework agent 接入 runtime registration contract |
+| `ProductionIncidentAgent` | 生产 incident agent | 按 intake、investigate、diagnose、remediate、guardrail、summarize 阶段执行 6 次 tool call | 验证复杂 agent 在 direct 路径和 registered runtime 路径下的治理差异 |
+
+### `ProductionIncidentAgent` 的具体行为
+
+这个 agent 是本项目当前最复杂的 production-grade reference agent。它不依赖外部网络，所以可稳定进入 CI；但它模拟真实生产排障行为：
+
+- intake：接收 checkout-api latency incident。
+- investigate：读取 deployment status、error logs、feature flag，并执行 sandbox diagnostics。
+- diagnose：生成 rollback candidate。
+- remediate：请求 approval 后提出 rollback。
+- guardrail：尝试未授权 hotfix，被 explicit policy deny。
+- summarize：输出 findings 和 remediation summary，等待人工 review。
+
+它的目标不是替代 OpenHands / SWE-agent 这类完整工程 agent，而是作为 Agent Runtime 的强压测试对象，证明 runtime 能治理一个多阶段、多 tool、高风险动作混合的生产 agent。
 
 ### `OpenAICompatibleToolCallingAgent` 的具体行为
 
@@ -74,9 +89,9 @@
 
 它不会把 API key 写进 audit、报告或可提交文件。真实 provider 测试只从 shell 环境或 ignored `.env` 读取 key。
 
-### 为什么测试 agent 不做复杂业务
+### 为什么同时保留简单 agent 和复杂 agent
 
-本轮测试故意选择 `echo`、Code/CI command、ops status 这类小工具，不是因为真实业务简单，而是为了把验证焦点放在 runtime 边界上：
+简单 agent 仍然有价值，因为它们能把 runtime 边界问题隔离得很清楚：
 
 - agent 是否真的产生 tool call。
 - tool call 是否进入 runtime。
@@ -85,6 +100,8 @@
 - tracing 是否能把 registered agent run 和 tool call 串成同一条 trace。
 - provider key 是否不会泄漏。
 - 未注册 agent 和注册 agent 的执行过程是否可区分。
+
+复杂 agent 则用于证明这些能力可以在同一个生产式 loop 中组合起来。`ProductionIncidentAgent` 会连续触发 allow、approval、sandbox 和 explicit deny，并把 findings/remediation 写入 transcript；它也支持未注册 direct execution，用来对比没有 runtime 时不会产生 policy、approval、sandbox、audit 或 trace。
 
 ## 用例矩阵
 
@@ -107,6 +124,8 @@
 | RAG-015 | Provider retry/backoff | `test_openai_compatible_transport_retries_transient_network_errors`，`test_openai_compatible_transport_retries_429_and_5xx_then_redacts_final_error` | EOF、429、5xx 使用 backoff retry，最终错误 redacts key | verified |
 | RAG-016 | LangGraph optional framework agent | `test_langgraph_agent_compares_unregistered_and_registered_runtime_execution` | LangGraph graph 未注册直连工具，注册后进入 runtime lifecycle/audit | verified |
 | RAG-017 | Governed agent tracing | `tests/test_tracing.py` | trace 同时说明 agent 做了什么、为什么允许/拒绝、是否经过 approval、是否强隔离、是否可审计 | verified |
+| RAG-018 | Production incident agent | `test_production_incident_agent_exercises_governed_runtime_paths` | 复杂 incident agent 在同一 run 中触发 allow、approval、sandbox、explicit deny、audit 和 trace | verified |
+| RAG-019 | Production incident registration comparison | `test_production_incident_agent_can_run_unregistered_with_direct_tools`，`test_production_incident_comparison_runs_direct_and_registered_paths` | 同一个复杂 incident agent 未注册时 direct tool 全部执行，注册后进入 policy/approval/sandbox/audit/trace 并拒绝 hotfix | verified |
 
 ## 用例详情
 
@@ -410,6 +429,52 @@ export GLM_MODEL="glm-5.2"
 **输出解释**
 
 这证明 agent 注册到 runtime 后，不只是多了 audit lifecycle，还能形成可复盘的 governed trace tree：agent run 是父 span，runtime tool call 是子 span，policy、approval 和 sandbox 是 tool call 下的治理子 span。
+
+**结论**
+
+通过。
+
+### RAG-018 Production Incident Agent
+
+**用例设计**
+
+注册 `ProductionIncidentAgent` 后执行 checkout-api latency incident loop。agent 依次读取部署状态、错误日志和 feature flag，在 sandbox 中运行 diagnostics，提出 rollback，并尝试未授权 hotfix。
+
+**输出结果**
+
+- phases：`intake -> investigate -> diagnose -> remediate -> guardrail -> summarize`。
+- 6 次 runtime tool call。
+- rollback 经过 approval gate 并被批准。
+- diagnostics 经过 strong sandbox，且无网络、无写路径。
+- hotfix 被 `deny-hotfix` policy 拒绝。
+- audit 和 trace 同时包含 agent run、tool call、policy、approval 和 sandbox 证据。
+
+**输出解释**
+
+该用例证明复杂生产式 agent loop 可以在同一次 run 中组合 allow、approval、sandbox 和 deny，不只是单步 tool call contract。
+
+**结论**
+
+通过。
+
+### RAG-019 Production Incident Registration Comparison
+
+**用例设计**
+
+使用同一个 `ProductionIncidentAgent` 执行两次：
+
+- 未注册：调用 `run_unregistered(..., direct_tools=...)`，直接执行本地工具函数。
+- 已注册：通过 `runtime.register_agent(...)` 后运行，所有 tool call 进入 runtime。
+
+**输出结果**
+
+- direct：`status=completed`，6 个 tool result 全部 success，`run_id=null`，`audit_events=[]`，`apply_hotfix` 返回 `applied`。
+- registered：`status=completed_with_denial`，前 5 个 tool result success，`apply_hotfix` denied，audit events 包含 `AgentRegistered` 和 `AgentRunFinished`。
+- example 会生成 `comparison.json`、`registered-audit.jsonl` 和 `registered-run-view.html`。
+
+**输出解释**
+
+这给用户一个可亲自运行的对比：没有 runtime 时 agent 只是业务代码直接执行；注册到 runtime 后，同一段 agent 行为会被 policy、approval、sandbox、audit 和 trace 治理。
 
 **结论**
 

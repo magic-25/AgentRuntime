@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: Python 3.12
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package and test dependencies
+        run: python -m pip install -e ".[dev]"
+
+      - name: Compile source and examples
+        run: python -m compileall -q src examples
+
+      - name: Lint
+        run: python -m ruff check .
+
+      - name: Type check
+        run: python -m pyright src
+
+      - name: Run tests
+        run: python -m pytest -q
+
+      - name: Certification report
+        run: PYTHONPATH=src python -m agent_runtime.cli.main certify run --subject all
+
+      - name: Adapter replay
+        run: PYTHONPATH=src python -m agent_runtime.cli.main adapter replay --scenario code-ci --adapter openai --adapter langgraph --adapter codex
+
+      - name: Sandbox conformance
+        run: |
+          PYTHONPATH=src python -m agent_runtime.cli.main sandbox conformance --backend container --dry-run
+          PYTHONPATH=src python -m agent_runtime.cli.main sandbox conformance --backend docker --dry-run
+          PYTHONPATH=src python -m agent_runtime.cli.main sandbox conformance --backend sidecar --dry-run
+          PYTHONPATH=src python -m agent_runtime.cli.main sandbox conformance --backend remote --dry-run

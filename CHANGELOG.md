@@ -4,7 +4,16 @@
 
 ## Unreleased
 
-- 暂无未发布条目。
+- 补充 Apache-2.0 `LICENSE`、`CODE_OF_CONDUCT.md`、GitHub Actions CI 和 pull request template，提升 public repo readiness。
+- `pyproject.toml` 改为 `0.1.0` technical preview package version，并补充 readme、license、classifiers、keywords、authors 和 `dev` extra。
+- `require_approval` 缺少显式 approval provider 时默认 reject，避免静默批准高风险操作。
+- sandboxed command 的 env 会在进入 sandbox backend 前按 `env_allowlist` 裁剪，避免 backend 接触未授权 secret。
+- JSONL audit sink 增加本地 advisory file lock，串行化单节点写入，避免并发写破坏 hash chain。
+- `ContainerSandboxBackend` 明确为 `container-plan-simulation`，conformance limitations 标出不执行真实 Docker container，降低开源用户误解风险。
+- 新增显式 opt-in 的 `DockerSandboxBackend` preview，使用本地 Docker daemon 执行 no-network/read-only/cap-drop command，并纳入 sandbox conformance。
+- CI 增加 `ruff check`、`pyright src`、certification、adapter replay 和 sandbox conformance，并新增 bug、feature、design partner feedback 和 security boundary issue templates。
+- 新增 `ROADMAP.md`，区分 Python package `0.x` 版本和内部 runtime contract gate。
+- 更新 README、CONTRIBUTING、SECURITY、USER_GUIDE、TEST_REPORT 和 DESIGN_PARTNER_RUNBOOK，修复 fresh setup、测试证据和安全边界说明漂移。
 
 ## Technical Preview
 
@@ -44,7 +53,7 @@
 - Codex workspace adapter stable candidate。
 - adapter conformance。
 - adapter replay。
-- container backend stable candidate contract。
+- container plan backend stable candidate contract。
 - sidecar backend preview contract。
 - remote executor contract beta。
 - sandbox conformance。

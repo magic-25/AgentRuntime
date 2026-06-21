@@ -123,6 +123,35 @@ def test_approval_timeout_rejects_tool_and_writes_audit(tmp_path):
     assert approval_event["payload"]["reason"] == "approval.timeout"
 
 
+def test_missing_approval_provider_rejects_required_approval_tool(tmp_path):
+    audit_path = tmp_path / "audit.jsonl"
+    runtime = AgentRuntime.from_dict(
+        {
+            "version": 1,
+            "default_decision": "deny",
+            "audit": {"path": str(audit_path)},
+            "rules": [{"id": "approve-echo", "environment": "prod", "tool": "echo", "effect": "require_approval"}],
+        }
+    )
+    called = False
+
+    @runtime.tool(name="echo")
+    def echo(value: str) -> str:
+        nonlocal called
+        called = True
+        return value
+
+    result = runtime.call_tool("echo", {"value": "hello"}, actor={}, environment="prod")
+
+    assert result.status == "rejected"
+    assert result.error == "approval_provider.missing"
+    assert called is False
+    events = [json.loads(line) for line in audit_path.read_text(encoding="utf-8").splitlines()]
+    approval_event = next(event for event in events if event["event_type"] == "ApprovalResolved")
+    assert approval_event["payload"]["approved"] is False
+    assert approval_event["payload"]["reason"] == "approval_provider.missing"
+
+
 def test_custom_redaction_fields_are_removed_from_audit(tmp_path):
     audit_path = tmp_path / "audit.jsonl"
     runtime = AgentRuntime.from_dict(

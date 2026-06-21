@@ -36,7 +36,7 @@ PYTHONPATH=src python examples/complete_runtime_report.py
 ```json
 {
   "path": ".agent-runtime/complete-report",
-  "scenario_count": 5,
+  "scenario_count": 6,
   "provider_mode": "real",
   "screenshot": ".agent-runtime/complete-report/complete-report.png"
 }
@@ -65,8 +65,28 @@ PYTHONPATH=src python examples/agent_run_screenshot.py
 ```text
 .agent-runtime/run-screenshots/real-provider-agent-run.json
 .agent-runtime/run-screenshots/real-provider-agent-run.html
+.agent-runtime/run-screenshots/real-provider-agent-run-view.html
 .agent-runtime/run-screenshots/real-provider-agent-run.png
 .agent-runtime/run-screenshots/real-provider-agent-run-audit.jsonl
+```
+
+其中 `real-provider-agent-run-view.html` 是完整运行过程可视化页面，包含 input、agent decision、runtime governance、execution timeline、tool calls、trace tree 和 raw evidence。也可以从已有 audit 重新生成：
+
+```bash
+PYTHONPATH=src python -m agent_runtime.cli.main run view \
+  --audit .agent-runtime/run-screenshots/real-provider-agent-run-audit.jsonl \
+  --snapshot .agent-runtime/run-screenshots/real-provider-agent-run.json \
+  --output .agent-runtime/run-screenshots/real-provider-agent-run-view.html
+```
+
+如果要查看 complete report 中某个 scenario 的最终运行报告，应同时传入 report 和 scenario，让 viewer 合并 prompt、phases、findings、remediation 等业务上下文：
+
+```bash
+PYTHONPATH=src python -m agent_runtime.cli.main run view \
+  --audit .agent-runtime/complete-report/production_incident-audit.jsonl \
+  --report .agent-runtime/complete-report/complete-report.json \
+  --scenario production_incident \
+  --output .agent-runtime/complete-report/production-incident-run-view.html
 ```
 
 ## 输出模型
@@ -95,6 +115,7 @@ PYTHONPATH=src python examples/agent_run_screenshot.py
 | `policy_deny` | Policy Deny Agent | 展示拒绝路径 | `ToolResult(status=denied)`，policy deny，tool 未执行 |
 | `approval_gate` | Approval Gate Agent | 展示 approval gate | approval approved，tool 成功执行 |
 | `sandboxed_command` | Sandboxed Command Agent | 展示强隔离 command execution | sandbox `isolation_level=strong`，backend 已记录 |
+| `production_incident` | Production Incident Agent | 展示复杂生产级 incident loop | 6 次 tool call，含 allow、approval、sandbox、显式 deny 和结构化 summary |
 
 ## Scenario 1：Scripted Echo Agent
 
@@ -308,6 +329,74 @@ run sandboxed status command
 **用户能体验到什么**
 
 command tool 不只是“跑了命令”。runtime 能说明该命令是在强隔离 backend 下执行，并把 isolation evidence 写入 trace。
+
+## Scenario 6：Production Incident Agent
+
+**输入**
+
+```text
+investigate checkout production latency
+```
+
+**Agent 做了什么**
+
+```text
+intake:checkout-api
+call:read_deployment_status
+call:inspect_error_logs
+call:query_feature_flag
+call:run_diagnostics
+diagnosis:rollback_candidate
+call:propose_rollback
+call:apply_hotfix
+blocked:matched_rule
+summary:ready_for_human_review
+```
+
+**结构化输出**
+
+```json
+{
+  "phases": ["intake", "investigate", "diagnose", "remediate", "guardrail", "summarize"],
+  "findings": {
+    "impact": "checkout-api degraded in us-east-1",
+    "suspected_cause": "high rollout feature flag increased dependency latency"
+  },
+  "remediation": {
+    "approved_action": "rollback",
+    "blocked_action": "apply_hotfix"
+  }
+}
+```
+
+**Governance 输出**
+
+```json
+{
+  "policy": {
+    "decision": "deny",
+    "reason": "matched_rule",
+    "rule_id": "deny-hotfix"
+  },
+  "approval": {
+    "status": "approved",
+    "approved": true,
+    "reason": "incident-commander-approved"
+  },
+  "sandbox": {
+    "isolation_level": "strong",
+    "backend": "complete-report-sandbox",
+    "status": "success"
+  },
+  "audit": {
+    "status": "committed"
+  }
+}
+```
+
+**用户能体验到什么**
+
+这个场景不再是单步 toy agent。它模拟生产 incident agent 的 plan / act / observe loop：先收集 deployment、logs、feature flag 和 sandbox diagnostics，再提出 rollback，并尝试未授权 hotfix。runtime 能同时解释哪些动作被允许、哪个动作需要 approval、哪个命令在强隔离下运行、哪个高风险写操作被显式 policy deny。
 
 ## Governed Trace
 
