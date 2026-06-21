@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextvars import ContextVar, Token
 import json
 import subprocess
 from pathlib import Path
@@ -62,7 +63,10 @@ class AgentRuntime:
         self.sandbox_executor = sandbox_executor or UnavailableSandboxExecutor()
         self._audit_event_types: list[str] = []
         self._audit_event_cursor = 0
-        self._agent_trace_context: dict[str, Any] | None = None
+        self._agent_trace_context: ContextVar[dict[str, Any] | None] = ContextVar(
+            f"agent_runtime_context_{id(self)}",
+            default=None,
+        )
 
     @classmethod
     def from_dict(
@@ -118,6 +122,7 @@ class AgentRuntime:
             {"actor": actor, "environment": environment, "metadata": normalized.to_dict()},
             environment=environment,
         )
+        registration_audit_events = self._audit_event_types_since_last_read()
         return RegisteredAgent(
             self,
             agent_id,
@@ -126,6 +131,7 @@ class AgentRuntime:
             environment,
             normalized,
             registration_audit_ok=registration_audit_ok,
+            registration_audit_events=registration_audit_events,
         )
 
     def run_agent(
@@ -254,20 +260,21 @@ class AgentRuntime:
         environment: str,
         adapter_source: str | None = None,
     ) -> ToolResult:
+        agent_context = self._current_agent_trace_context()
         call = ToolCall.create(
             tool_name=tool_name,
             input=self._redact(input),
             actor=actor,
             environment=environment,
-            trace_id=self._agent_trace_context.get("trace_id") if self._agent_trace_context else None,
-            agent_id=self._agent_trace_context.get("agent_id") if self._agent_trace_context else None,
+            trace_id=agent_context.get("trace_id") if agent_context else None,
+            agent_id=agent_context.get("agent_id") if agent_context else None,
         )
         metadata = {"adapter_source": adapter_source} if adapter_source else {}
-        if self._agent_trace_context:
+        if agent_context:
             metadata = {
                 **metadata,
-                "agent_id": self._agent_trace_context["agent_id"],
-                "parent_span_id": self._agent_trace_context["agent_span_id"],
+                "agent_id": agent_context["agent_id"],
+                "parent_span_id": agent_context["agent_span_id"],
             }
         span_started_at = perf_counter()
         if not self._audit("ToolCallRequested", call, {"input": call.input, **metadata}, environment=environment):
@@ -777,7 +784,7 @@ class AgentRuntime:
                     payload=payload,
                 )
             )
-            self._audit_event_types.append(event_type)
+            self._record_audit_event_type(event_type)
             return True
         except Exception:
             fail_closed = self._audit_failure_strategy(environment or call.environment) == "fail_closed"
@@ -804,7 +811,7 @@ class AgentRuntime:
                     payload=payload,
                 )
             )
-            self._audit_event_types.append(event_type)
+            self._record_audit_event_type(event_type)
             return True
         except Exception:
             fail_closed = self._audit_failure_strategy(environment or call.environment) == "fail_closed"
@@ -826,7 +833,7 @@ class AgentRuntime:
                     payload=self._redact({"agent_id": agent_id, **payload}),
                 )
             )
-            self._audit_event_types.append(event_type)
+            self._record_audit_event_type(event_type)
             return True
         except Exception:
             fail_closed = self._audit_failure_strategy(environment or str(payload.get("environment", "prod"))) == "fail_closed"
@@ -852,7 +859,7 @@ class AgentRuntime:
                     payload=self._redact({"agent_id": agent_id, **payload}),
                 )
             )
-            self._audit_event_types.append(event_type)
+            self._record_audit_event_type(event_type)
             return True
         except Exception:
             fail_closed = self._audit_failure_strategy(environment or str(payload.get("environment", "prod"))) == "fail_closed"
@@ -864,6 +871,27 @@ class AgentRuntime:
 
     def _audit_event_types_since(self, cursor: int) -> list[str]:
         return self._audit_event_types[cursor:]
+
+    def _current_agent_trace_context(self) -> dict[str, Any] | None:
+        return self._agent_trace_context.get()
+
+    def _set_agent_trace_context(self, context: dict[str, Any]) -> Token[dict[str, Any] | None]:
+        return self._agent_trace_context.set(context)
+
+    def _reset_agent_trace_context(self, token: Token[dict[str, Any] | None]) -> None:
+        self._agent_trace_context.reset(token)
+
+    def _current_agent_audit_events(self) -> list[str]:
+        context = self._current_agent_trace_context()
+        if context is None:
+            return []
+        return list(context.get("audit_event_types", []))
+
+    def _record_audit_event_type(self, event_type: str) -> None:
+        self._audit_event_types.append(event_type)
+        context = self._current_agent_trace_context()
+        if context is not None:
+            context.setdefault("audit_event_types", []).append(event_type)
 
     def _audit_failure_strategy(self, environment: str) -> str:
         return (
@@ -931,9 +959,10 @@ class AgentRuntime:
         return None
 
     def _agent_profile_requirement_error(self, definition: Any) -> str | None:
-        if self._agent_trace_context is None:
+        agent_context = self._current_agent_trace_context()
+        if agent_context is None:
             return None
-        declared_capabilities = set(self._agent_trace_context.get("capabilities") or [])
+        declared_capabilities = set(agent_context.get("capabilities") or [])
         if declared_capabilities:
             missing_capabilities = [
                 capability for capability in definition.capabilities_required if capability not in declared_capabilities
@@ -941,7 +970,7 @@ class AgentRuntime:
             if missing_capabilities:
                 return "agent.capability_denied"
 
-        runtime_profile = self._agent_trace_context.get("runtime_profile") or {}
+        runtime_profile = agent_context.get("runtime_profile") or {}
         if (
             runtime_profile.get("sandbox_required")
             and _requires_strong_guard(definition)
@@ -951,22 +980,24 @@ class AgentRuntime:
         return None
 
     def _agent_max_tool_calls_error(self) -> str | None:
-        if self._agent_trace_context is None:
+        agent_context = self._current_agent_trace_context()
+        if agent_context is None:
             return None
-        runtime_profile = self._agent_trace_context.get("runtime_profile") or {}
+        runtime_profile = agent_context.get("runtime_profile") or {}
         max_tool_calls = runtime_profile.get("max_tool_calls")
         if max_tool_calls is None:
             return None
-        tool_call_count = int(self._agent_trace_context.get("tool_call_count", 0))
+        tool_call_count = int(agent_context.get("tool_call_count", 0))
         if tool_call_count >= int(max_tool_calls):
             return "agent.max_tool_calls_exceeded"
-        self._agent_trace_context["tool_call_count"] = tool_call_count + 1
+        agent_context["tool_call_count"] = tool_call_count + 1
         return None
 
     def _agent_approval_requirement_error(self, decision: Any, definition: Any) -> str | None:
-        if self._agent_trace_context is None:
+        agent_context = self._current_agent_trace_context()
+        if agent_context is None:
             return None
-        runtime_profile = self._agent_trace_context.get("runtime_profile") or {}
+        runtime_profile = agent_context.get("runtime_profile") or {}
         if runtime_profile.get("approval_required") and _requires_strong_guard(definition) and decision.decision == "allow":
             return "agent.approval_required"
         return None

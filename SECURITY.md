@@ -74,7 +74,7 @@ policy evaluation 使用保守 precedence：tool-specific deny 会覆盖 broad c
 
 高风险 prod command tool 必须使用 `sandboxed_command_tool` 和宿主注入的强隔离 sandbox backend；backend 不可用时 runtime 返回 `sandbox.unavailable`，不会退回普通 subprocess。
 
-sandboxed command 的环境变量会在进入 sandbox backend 前按 `env_allowlist` 裁剪，backend 不应接触未授权 secret。secret-like key 即使被误放进 allowlist，也会在 runtime / sandbox plan 层被拒绝，backend 不会收到该 env。Docker backend 传递 env 时不会把 `KEY=value` 放入命令行 argv，避免通过进程列表泄漏值。
+sandboxed command 的环境变量会在进入 sandbox backend 前按 `env_allowlist` 裁剪，backend 不应接触未授权 secret。普通 subprocess 和 sandboxed command 都会拒绝 secret-like allowlisted env key；backend 不会收到这类 env。Docker backend 传递 env 时不会把 `KEY=value` 放入命令行 argv，避免通过进程列表泄漏值。
 
 complete report 和 single-run screenshot HTML 会转义 prompt、provider output、tool result、policy/audit/trace 等动态值。公开 artifact 仍不应包含密钥、客户数据、原始 provider secret payload 或生产敏感信息。
 

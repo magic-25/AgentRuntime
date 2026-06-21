@@ -1,9 +1,12 @@
 import json
 import sys
 
+import pytest
+
 from agent_runtime.audit.jsonl import JsonlAuditSink
 from agent_runtime.approval.base import StaticApprovalProvider
 from agent_runtime.core.runtime import AgentRuntime
+from agent_runtime.execution.sandbox import SandboxViolationError
 from agent_runtime.execution.subprocess import SubprocessExecutor
 
 
@@ -167,3 +170,16 @@ def test_subprocess_executor_applies_env_allowlist_timeout_and_output_limit(tmp_
     assert result.exit_code == 0
     assert result.stdout.startswith("yes")
     assert len(result.stdout.encode("utf-8")) <= 16
+
+
+def test_subprocess_executor_rejects_secret_like_allowlisted_env(tmp_path):
+    executor = SubprocessExecutor()
+
+    with pytest.raises(SandboxViolationError, match="env.secret_denied"):
+        executor.execute(
+            argv=[sys.executable, "-c", "print('should not run')"],
+            cwd=tmp_path,
+            env={"API_KEY": "secret-value"},
+            env_allowlist=["API_KEY"],
+            timeout_ms=2000,
+        )

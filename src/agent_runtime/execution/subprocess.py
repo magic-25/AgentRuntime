@@ -5,6 +5,7 @@ import subprocess
 from pathlib import Path
 
 from agent_runtime.execution.base import ProcessResult
+from agent_runtime.execution.sandbox import filter_sandbox_env
 
 
 class SubprocessExecutor:
@@ -36,9 +37,7 @@ class SubprocessExecutor:
 
     def _allowed_env(self, env: dict[str, str], env_allowlist: list[str]) -> dict[str, str]:
         base = {"PATH": os.environ.get("PATH", "")}
-        for key in env_allowlist:
-            if key in env:
-                base[key] = env[key]
+        base.update(filter_sandbox_env(env, env_allowlist))
         return base
 
 
