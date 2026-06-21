@@ -1,0 +1,20 @@
+{
+  "adapter": "anthropic",
+  "source": "anonymized_anthropic_tool_use_block_shape",
+  "payload": {
+    "type": "tool_use",
+    "id": "toolu_fixture_anthropic",
+    "name": "echo",
+    "input": {
+      "value": "anthropic-fixture",
+      "request_id": "req-redacted"
+    }
+  },
+  "expected": {
+    "tool_name": "echo",
+    "arguments": {
+      "value": "anthropic-fixture",
+      "request_id": "req-redacted"
+    }
+  }
+}

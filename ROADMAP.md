@@ -22,7 +22,17 @@ Agent Runtime 当前是 **Technical Preview**，Python package version 使用 `0
 
 ## 当前下一步
 
-- 用真实 design partner/staging 场景跑通 `DESIGN_PARTNER_RUNBOOK.md`。
-- 将 Docker sandbox backend 从 preview 推进到 stable candidate 前，补充宿主安全基线、镜像可信链、资源限制证据和失败回退 runbook。
-- 在 GitHub 仓库设置中启用 branch protection、required checks 和 private vulnerability reporting。
-- 收集 OpenAI、Anthropic、LangGraph、MCP、Codex 的真实 payload fixture，扩展 adapter replay。
+- 用外部 design partner 场景复跑 `DESIGN_PARTNER_RUNBOOK.md`，当前仓库已提供 `STAGING_VALIDATION_REPORT.md` 作为 surrogate staging evidence。
+- 扩展 OpenAI、Anthropic、LangGraph、MCP、Codex 的匿名真实 payload fixture；当前已有 `tests/fixtures/adapter_payloads/` 基线覆盖。
+- 发布 `v0.1.0` GitHub technical preview release；PyPI publish 需要项目 owner 的 PyPI API token。
+
+## Docker sandbox backend stable candidate gate
+
+`DockerSandboxBackend` 在满足以下条件前必须保持 `preview`：
+
+- host security baseline：记录 Docker daemon 权限、rootless/rootful 模式、宿主内核版本、seccomp/AppArmor/SELinux 状态和禁止挂载敏感 socket 的策略。
+- trusted image chain：固定镜像 digest，记录镜像来源、更新流程和漏洞扫描结果。
+- resource isolation evidence：记录 pids、cpu、memory、read-only root filesystem、cap-drop ALL、no-new-privileges、network none 和 tmpfs 行为证据。
+- append-only audit export：将 JSONL/SQLite audit 转发到宿主 append-only 或 WORM sink，而不是只依赖本地文件。
+- design partner staging evidence：至少一个真实 staging/design partner 场景跑通 runbook，并记录 operator feedback、policy denial explainability 和 failure recovery。
+- rollback runbook：backend 不可用、Docker daemon 超时、镜像拉取失败、资源限制触发和 audit export 失败时必须 fail closed，并有清晰恢复步骤。

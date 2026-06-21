@@ -1,0 +1,23 @@
+{
+  "adapter": "mcp",
+  "source": "anonymized_mcp_tools_call_shape",
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": "mcp-fixture-1",
+    "method": "tools/call",
+    "params": {
+      "name": "echo",
+      "arguments": {
+        "value": "mcp-fixture",
+        "server": "redacted"
+      }
+    }
+  },
+  "expected": {
+    "tool_name": "echo",
+    "arguments": {
+      "value": "mcp-fixture",
+      "server": "redacted"
+    }
+  }
+}

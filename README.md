@@ -23,6 +23,9 @@ Python 包版本使用 `0.x`，表示当前是开源 technical preview；`releas
 - [Provider Agent Runtime 对比测试报告](PROVIDER_RUNTIME_COMPARISON_REPORT.md)：`glm-agent` 未注册 / 注册到 runtime 的执行过程对比。
 - [Agent Registry Contract](AGENT_REGISTRY_CONTRACT.md)
 - [Roadmap：版本与阶段说明](ROADMAP.md)
+- [Release Checklist](RELEASE_CHECKLIST.md)
+- [Staging Validation Report](STAGING_VALIDATION_REPORT.md)
+- [Adapter Payload Fixtures](ADAPTER_PAYLOAD_FIXTURES.md)
 - [Design Partner Runbook](DESIGN_PARTNER_RUNBOOK.md)
 - [开源 Agent 采用评估](OPEN_SOURCE_AGENT_EVALUATION.md)
 - [贡献指南](CONTRIBUTING.md)

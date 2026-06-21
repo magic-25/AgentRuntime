@@ -1,0 +1,17 @@
+{
+  "adapter": "openai",
+  "source": "anonymized_openai_responses_function_call_shape",
+  "payload": {
+    "type": "function_call",
+    "call_id": "call_fixture_openai",
+    "name": "echo",
+    "arguments": "{\"value\":\"openai-fixture\",\"request_id\":\"req-redacted\"}"
+  },
+  "expected": {
+    "tool_name": "echo",
+    "arguments": {
+      "value": "openai-fixture",
+      "request_id": "req-redacted"
+    }
+  }
+}

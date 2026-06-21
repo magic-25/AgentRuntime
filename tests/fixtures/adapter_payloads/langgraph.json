@@ -1,0 +1,18 @@
+{
+  "adapter": "langgraph",
+  "source": "anonymized_langgraph_tool_node_shape",
+  "payload": {
+    "tool": "echo",
+    "input": {
+      "value": "langgraph-fixture",
+      "node": "triage"
+    }
+  },
+  "expected": {
+    "tool_name": "echo",
+    "arguments": {
+      "value": "langgraph-fixture",
+      "node": "triage"
+    }
+  }
+}

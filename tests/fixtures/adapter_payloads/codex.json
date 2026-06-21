@@ -1,0 +1,28 @@
+{
+  "adapter": "codex",
+  "source": "anonymized_codex_workspace_command_shape",
+  "payload": {
+    "kind": "workspace_command",
+    "command": [
+      "python",
+      "-m",
+      "pytest",
+      "-q"
+    ],
+    "cwd": ".",
+    "write_scope": "tests"
+  },
+  "expected": {
+    "tool_name": "codex.workspace.command",
+    "arguments": {
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q"
+      ],
+      "cwd": ".",
+      "write_scope": "tests"
+    }
+  }
+}
