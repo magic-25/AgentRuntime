@@ -1,9 +1,11 @@
 import json
 
 from agent_runtime import AgentMetadata as PublicAgentMetadata
+from agent_runtime import AgentRunRequest as PublicAgentRunRequest
+from agent_runtime import AgentRunResult as PublicAgentRunResult
 from agent_runtime import AgentRuntime as PublicAgentRuntime
 from agent_runtime import RuntimeProfile as PublicRuntimeProfile
-from agent_runtime.core.models import AgentMetadata, RuntimeProfile
+from agent_runtime.core.models import AgentMetadata, AgentRunRequest, AgentRunResult, RuntimeProfile
 from agent_runtime.core.runtime import AgentRuntime
 from agent_runtime.testing.provider_agents import OpenAICompatibleToolCallingAgent
 
@@ -67,6 +69,8 @@ def _audit_events(path):
 
 def test_agent_registry_contract_types_are_public_api():
     assert PublicAgentMetadata is AgentMetadata
+    assert PublicAgentRunRequest is AgentRunRequest
+    assert PublicAgentRunResult is AgentRunResult
     assert PublicRuntimeProfile is RuntimeProfile
     assert PublicAgentRuntime is AgentRuntime
 

@@ -51,6 +51,7 @@ Python 包版本使用 `0.x`，表示当前是开源 technical preview；`releas
 - observer metrics。
 - limited subprocess executor。
 - sandbox provider interface。
+- agent execution session contract：`AgentRunRequest` / `AgentRunResult`。
 
 ### Contrib / Adapter / Sandbox Preview
 
@@ -67,6 +68,7 @@ Python 包版本使用 `0.x`，表示当前是开源 technical preview；`releas
 - GLM/OpenAI-compatible provider agent optional integration test。
 - agent registration lifecycle comparison test。
 - formal agent registry contract。
+- generic registered agent `run_session(...)`，支持任意 Python agent 输出并生成统一运行结果。
 - governed agent tracing test。
 - complete runtime report runner。
 - single agent run screenshot runner。

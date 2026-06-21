@@ -38,6 +38,8 @@ def test_release_candidate_public_api_contract_resolves_symbols():
     experimental = experimental_public_api()
 
     assert "agent_runtime.AgentRuntime" in stable
+    assert "agent_runtime.AgentRunRequest" in stable
+    assert "agent_runtime.AgentRunResult" in stable
     assert "agent_runtime.core.models.ToolCall" in stable
     assert "agent_runtime.audit.sqlite.SQLiteAuditSink" in stable
     assert "agent_runtime.execution.sandbox.SandboxExecutor" in stable

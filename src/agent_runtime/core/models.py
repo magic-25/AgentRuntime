@@ -54,6 +54,34 @@ class AgentMetadata:
 
 
 @dataclass(frozen=True)
+class AgentRunRequest:
+    prompt: str
+    input: dict[str, Any] = field(default_factory=dict)
+    context: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class AgentRunResult:
+    agent_id: str
+    status: str
+    request: AgentRunRequest
+    output: Any = None
+    registration: str = "registered"
+    trace_id: str | None = None
+    agent_span_id: str | None = None
+    agent_metadata: dict[str, Any] = field(default_factory=dict)
+    tool_results: list["ToolResult"] = field(default_factory=list)
+    audit_events: list[str] = field(default_factory=list)
+    error: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
 class ToolCall:
     tool_call_id: str
     run_id: str

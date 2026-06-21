@@ -36,6 +36,52 @@ registered_agent = runtime.register_agent(
 )
 ```
 
+## Execution Session Contract
+
+推荐使用 `registered_agent.run_session(...)` 运行注册 agent。它返回稳定的 `AgentRunResult`，用于把任意 agent 输出包装成 runtime 可审计、可追踪、可导出的运行结果。
+
+```python
+from agent_runtime import AgentRunRequest
+
+result = registered_agent.run_session(
+    AgentRunRequest(
+        prompt="Investigate incident INC-1",
+        context={"ticket": "INC-1", "workspace": "staging"},
+    )
+)
+
+assert result.status == "completed"
+assert result.registration == "registered"
+assert result.trace_id is not None
+assert result.agent_span_id is not None
+```
+
+`run_session(...)` 支持普通 `str` prompt，也支持 `AgentRunRequest`。
+
+`AgentRunResult` 字段：
+
+| 字段 | 含义 |
+| --- | --- |
+| `agent_id` | runtime 内的 agent 标识 |
+| `status` | `completed`、`blocked`、`failed` 等运行状态 |
+| `request` | 本次运行的 `AgentRunRequest` |
+| `output` | agent 输出的 JSON-friendly 表示，已应用 runtime redaction |
+| `registration` | 当前固定为 `registered` |
+| `trace_id` | 本次 agent run 的 trace id |
+| `agent_span_id` | 本次 agent run 的 span id |
+| `agent_metadata` | 注册 metadata |
+| `tool_results` | runtime-governed tool results |
+| `audit_events` | 本次运行相关 audit event type 列表 |
+| `error` | agent 自身失败时的异常类型 |
+
+`AgentRunResult.to_dict()` 用于 complete report、run view、CLI export、未来 sidecar / remote executor 和其他语言 SDK contract。
+
+兼容说明：
+
+- `registered_agent.run(...)` 保持旧行为，继续返回 agent 自己的 transcript，并在 agent 自身异常时重新抛出原异常。
+- `registered_agent.run_session(...)` 是新推荐入口，agent 自身异常时返回 `AgentRunResult(status="failed")`，便于 UI、runbook 和测试报告展示。
+- `runtime.run_agent(...)` 是便捷入口，会先注册 agent，再返回 `AgentRunResult`。
+
 ## Agent Metadata
 
 | 字段 | 含义 |
@@ -112,8 +158,8 @@ trace 关系必须满足：
 - approval-gate span 的 `parent_span_id` 指向 tool-call span，并记录 `approved`、`reason`、`timed_out`、`rule_id` 和 `risk_level`。
 - sandbox-execution span 的 `parent_span_id` 指向 tool-call span，并记录 `isolation_level=strong`、`backend`、`available` 和 `status`。
 - 成功 tool-call span finish payload 必须包含 `audit_status=committed`，用于说明该运行片段已经写入 audit sink。
-- agent transcript 暴露 `trace_id` 和 `agent_span_id`，用于把业务输出、audit events 和 tracing 串起来。
-- 如果 agent 自身抛出异常，runtime 仍然记录 `AgentRunFinished(status=failed)` 和 `TraceSpanFinished(span_kind=agent_run, status=failed)`，然后把原异常继续抛给调用方。
+- `AgentRunResult` 暴露 `trace_id` 和 `agent_span_id`，用于把业务输出、audit events 和 tracing 串起来。兼容入口 `run(...)` 也会继续把这些字段附加到 transcript。
+- 如果 agent 自身抛出异常，runtime 仍然记录 `AgentRunFinished(status=failed)` 和 `TraceSpanFinished(span_kind=agent_run, status=failed)`。`run_session(...)` 返回 failed result；兼容入口 `run(...)` 继续把原异常抛给调用方。
 
 这个 contract 的目的不是替代 audit，而是让 observer、tracing backend 或 design partner runbook 能还原：
 

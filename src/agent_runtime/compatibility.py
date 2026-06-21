@@ -8,6 +8,10 @@ def stable_public_api() -> dict[str, dict[str, str]]:
     return _resolve_all(
         {
             "agent_runtime.AgentRuntime": "stable",
+            "agent_runtime.AgentRunRequest": "stable",
+            "agent_runtime.AgentRunResult": "stable",
+            "agent_runtime.core.models.AgentRunRequest": "stable",
+            "agent_runtime.core.models.AgentRunResult": "stable",
             "agent_runtime.core.models.ToolDefinition": "stable",
             "agent_runtime.core.models.ToolCall": "stable",
             "agent_runtime.core.models.ToolResult": "stable",
