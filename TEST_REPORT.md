@@ -7,7 +7,7 @@
 
 ## 结论摘要
 
-本轮测试结论：当前仓库在 core regression、complete runtime report、scenario-based acceptance、real-agent loop、governed agent tracing、真实 provider agent optional integration、platform-ready certification、adapter contract、sandbox contract、platform simulation、Code/CI reference pilot、staging internal admin pilot、audit verify 和 observer status 这些关键路径上均有新鲜证据。
+本轮测试结论：当前仓库在 core regression、E2E smoke、complete runtime report、scenario-based acceptance、real-agent loop、governed agent tracing、真实 provider agent optional integration、platform-ready certification、adapter contract、sandbox contract、platform simulation、Code/CI reference pilot、staging internal admin pilot、audit verify 和 observer status 这些关键路径上均有新鲜证据。
 
 本轮没有发现阻塞 Technical Preview 或 design partner pilot 准备的回归。
 
@@ -34,7 +34,7 @@
 
 ## 测试设计
 
-测试设计分为十四层：
+测试设计分为十五层：
 
 1. **Regression**：使用全量 `pytest` 覆盖 core、policy、audit、adapter、sandbox、platform、pilot 等现有测试。
 2. **Scenario-Based Acceptance**：把 `USER_GUIDE.md` 的 11 个场景映射成用户视角测试。
@@ -50,6 +50,7 @@
 12. **Run Process Viewer**：验证单次 run 可以从 audit/snapshot 生成完整运行过程 HTML，展示 input、agent decision、runtime governance、timeline、tool calls、trace tree 和 raw evidence。
 13. **Direct vs Registered Agent Comparison**：验证同一个 agent 可以被用户以未注册 direct execution 和 registered runtime execution 两种方式运行，并能看到治理差异。
 14. **Pilot E2E**：验证 Code/CI reference pilot 和 staging internal admin pilot 的实际可跑路径。
+15. **E2E Smoke**：验证 clean wheel install、production incident run view、Docker sandbox runtime 和 complete report fake provider 四条端到端路径。
 
 测试策略不是只看“命令是否返回 0”，还要解释输出语义。例如 remote backend conformance 返回 `passed=false`，但原因是 `remote.contract_beta_only`，这符合当前 support matrix。
 
@@ -93,12 +94,12 @@ python -m pytest -q
 **输出结果**
 
 ```text
-195 passed in 28.50s
+201 passed in 34.43s
 ```
 
 **输出解释**
 
-`195 passed` 表示当前测试套件全部通过，且真实 GLM provider integration、formal agent registry contract、registered agent deny-path、governed agent tracing、complete runtime report、agent run screenshot、run process viewer、complete-report scenario context、JSON beauty view、production incident agent、production incident registration comparison、provider retry/backoff、LangGraph optional framework agent、approval 默认拒绝、sandbox env 预过滤、JSONL audit 本地并发写 hash chain、显式 opt-in Docker sandbox backend preview、Docker backend CLI conformance、adapter payload fixtures 和 Docker stable candidate gate 都已验证。覆盖范围包括 adapter、audit、policy、sandbox、platform、release manifest、Code/CI pilot、staging pilot、SQLite audit、tracing、11 个基于用户指南场景的 acceptance tests、复杂 production incident agent、未注册 direct execution 与 registered runtime execution 对比、complete runtime report、single-run screenshot、带业务上下文的完整运行过程 HTML，以及 provider/framework-agent tests。
+`201 passed` 表示当前测试套件全部通过，且真实 GLM provider integration、formal agent registry contract、registered agent deny-path、governed agent tracing、complete runtime report、agent run screenshot、run process viewer、complete-report scenario context、JSON beauty view、production incident agent、production incident registration comparison、provider retry/backoff、LangGraph optional framework agent、approval 默认拒绝、sandbox env 预过滤、JSONL audit 本地并发写 hash chain、显式 opt-in Docker sandbox backend preview、Docker backend CLI conformance、adapter payload fixtures、Docker stable candidate gate 和 E2E smoke 都已验证。覆盖范围包括 adapter、audit、policy、sandbox、platform、release manifest、Code/CI pilot、staging pilot、SQLite audit、tracing、11 个基于用户指南场景的 acceptance tests、复杂 production incident agent、未注册 direct execution 与 registered runtime execution 对比、complete runtime report、single-run screenshot、带业务上下文的完整运行过程 HTML、clean wheel install、Docker sandbox runtime E2E，以及 provider/framework-agent tests。
 
 **结论**
 
@@ -712,7 +713,7 @@ production incident registration comparison 由 `examples/production_incident_co
 
 | 范围 | 状态 | 原因 |
 | --- | --- | --- |
-| 真实 OpenAI / Anthropic / LangGraph / MCP / Codex provider payload 全量 replay | 部分覆盖 | 当前新增 GLM/OpenAI-compatible provider agent optional integration，但尚未收集多 provider 匿名 payload fixture |
+| 真实 OpenAI / Anthropic / LangGraph / MCP / Codex provider payload 全量 replay | 部分覆盖 | 已有匿名 payload fixture baseline，但仍未覆盖各 provider SDK 全量变体 |
 | 真实 GLM/Z.AI provider 外部调用 | 已测试 | 本轮使用 ignored `.env` 中的本地 key 运行；secret 不进入可提交文件或公开报告 |
 | hosted control plane | 未测试 | 当前项目不自带 hosted control plane |
 | enterprise console / RBAC UI | 未测试 | 当前明确 unsupported |
@@ -732,7 +733,7 @@ Code/CI reference pilot 当前 `audit_mode=digest-only`，不能替代 runtime S
 
 ### P1：真实 provider payload replay 仍需扩展
 
-adapter conformance 证明 adapter contract；新增的 GLM/OpenAI-compatible provider agent 证明至少一个真实 provider tool-call 接入路径已经存在。但它仍不能证明 OpenAI、Anthropic、LangGraph、MCP、Codex 等真实 provider SDK payload 全量兼容。下一步应收集匿名真实 payload fixture，并纳入 adapter replay。
+adapter conformance 证明 adapter contract；GLM/OpenAI-compatible provider agent 证明至少一个真实 provider tool-call 接入路径已经存在；OpenAI、Anthropic、LangGraph、MCP、Codex 已有匿名 payload fixture baseline。但它仍不能证明各 provider SDK payload 全量兼容，下一步应继续增加更多真实匿名 fixture，并纳入 adapter replay。
 
 ### P2：platform simulation 不是 hosted control plane 验证
 
@@ -753,4 +754,4 @@ container smoke passed 只证明本机 Docker smoke 可运行。当前 contrib `
 3. MCP tool governance。
 4. Ops diagnostic read-only agent。
 
-进入真实 design partner 前，最需要补齐的是 Code/CI runtime audit chain，以及更多 provider/framework 的真实 payload replay。GLM/Z.AI optional integration 已经提供第一条真实 provider 接入路径，但仍需要用轮换后的本地 key 跑一次真实外部调用并记录不含 secret 的摘要证据。
+进入真实 design partner 前，最需要补齐的是真实外部 design partner 反馈、Code/CI runtime audit chain，以及更多 provider/framework 的真实 payload replay。GLM/Z.AI optional integration 已经提供第一条真实 provider 接入路径；默认 CI 仍不调用真实 provider key。

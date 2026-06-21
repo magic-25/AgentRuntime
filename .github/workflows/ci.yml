@@ -35,6 +35,9 @@ jobs:
       - name: Run tests
         run: python -m pytest -q
 
+      - name: Run E2E smoke tests
+        run: PYTHONPATH=src python -m pytest tests/e2e -q
+
       - name: Certification report
         run: PYTHONPATH=src python -m agent_runtime.cli.main certify run --subject all
 

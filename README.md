@@ -24,6 +24,7 @@ Python 包版本使用 `0.x`，表示当前是开源 technical preview；`releas
 - [Agent Registry Contract](AGENT_REGISTRY_CONTRACT.md)
 - [Roadmap：版本与阶段说明](ROADMAP.md)
 - [Release Checklist](RELEASE_CHECKLIST.md)
+- [E2E Test Plan](E2E_TEST_PLAN.md)
 - [Staging Validation Report](STAGING_VALIDATION_REPORT.md)
 - [Adapter Payload Fixtures](ADAPTER_PAYLOAD_FIXTURES.md)
 - [Design Partner Runbook](DESIGN_PARTNER_RUNBOOK.md)
@@ -101,6 +102,7 @@ python -m venv .venv
 . .venv/bin/activate
 python -m pip install -e ".[dev]"
 python -m pytest
+PYTHONPATH=src python -m pytest tests/e2e -q
 python examples/minimal_agent.py
 ```
 

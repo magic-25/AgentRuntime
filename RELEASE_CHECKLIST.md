@@ -21,6 +21,7 @@ python -m ruff check .
 python -m compileall -q src examples
 python -m pyright src
 PYTHONPATH=src python -m pytest -q
+PYTHONPATH=src python -m pytest tests/e2e -q
 PYTHONPATH=src python -m agent_runtime.cli.main certify run --subject all
 PYTHONPATH=src python -m agent_runtime.cli.main adapter replay --scenario code-ci --adapter openai --adapter langgraph --adapter codex
 PYTHONPATH=src python -m agent_runtime.cli.main sandbox conformance --backend container --dry-run

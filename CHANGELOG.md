@@ -15,6 +15,7 @@
 - 新增 `ROADMAP.md`，区分 Python package `0.x` 版本和内部 runtime contract gate。
 - 新增 `RELEASE_CHECKLIST.md`、`STAGING_VALIDATION_REPORT.md` 和 `ADAPTER_PAYLOAD_FIXTURES.md`，补齐 release、staging surrogate validation 和 provider payload fixture 证据。
 - 新增 OpenAI、Anthropic、LangGraph、MCP、Codex adapter payload fixture 回归测试，避免 adapter 只覆盖理想化 sample payload。
+- 新增 `E2E_TEST_PLAN.md` 和 `tests/e2e/`，覆盖 clean wheel install、production incident run view、Docker sandbox runtime 和 complete report fake provider E2E smoke。
 - 更新 README、CONTRIBUTING、SECURITY、USER_GUIDE、TEST_REPORT 和 DESIGN_PARTNER_RUNBOOK，修复 fresh setup、测试证据和安全边界说明漂移。
 
 ## Technical Preview
