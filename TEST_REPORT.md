@@ -50,7 +50,7 @@
 12. **Run Process Viewer**：验证单次 run 可以从 audit/snapshot 生成完整运行过程 HTML，展示 input、agent decision、runtime governance、timeline、tool calls、trace tree 和 raw evidence。
 13. **Direct vs Registered Agent Comparison**：验证同一个 agent 可以被用户以未注册 direct execution 和 registered runtime execution 两种方式运行，并能看到治理差异。
 14. **Pilot E2E**：验证 Code/CI reference pilot 和 staging internal admin pilot 的实际可跑路径。
-15. **E2E Smoke**：验证 clean wheel install、production incident run view、Docker sandbox runtime 和 complete report fake provider 四条端到端路径。
+15. **E2E Smoke**：验证 clean wheel install、production incident run view、Docker sandbox runtime、complete report fake provider、Docker sandbox failure paths 和 run view browser evidence 六条端到端路径。
 
 测试策略不是只看“命令是否返回 0”，还要解释输出语义。例如 remote backend conformance 返回 `passed=false`，但原因是 `remote.contract_beta_only`，这符合当前 support matrix。
 
@@ -94,12 +94,12 @@ python -m pytest -q
 **输出结果**
 
 ```text
-201 passed in 34.08s
+203 passed in 34.75s
 ```
 
 **输出解释**
 
-`201 passed` 表示当前测试套件全部通过，且真实 GLM provider integration、formal agent registry contract、registered agent deny-path、governed agent tracing、complete runtime report、agent run screenshot、run process viewer、complete-report scenario context、JSON beauty view、production incident agent、production incident registration comparison、provider retry/backoff、LangGraph optional framework agent、approval 默认拒绝、sandbox env 预过滤、JSONL audit 本地并发写 hash chain、显式 opt-in Docker sandbox backend preview、Docker backend CLI conformance、adapter payload fixtures、Docker stable candidate gate 和 E2E smoke 都已验证。覆盖范围包括 adapter、audit、policy、sandbox、platform、release manifest、Code/CI pilot、staging pilot、SQLite audit、tracing、11 个基于用户指南场景的 acceptance tests、复杂 production incident agent、未注册 direct execution 与 registered runtime execution 对比、complete runtime report、single-run screenshot、带业务上下文的完整运行过程 HTML、clean wheel install、Docker sandbox runtime E2E，以及 provider/framework-agent tests。
+`203 passed` 表示当前测试套件全部通过，且真实 GLM provider integration、formal agent registry contract、registered agent deny-path、governed agent tracing、complete runtime report、agent run screenshot、run process viewer、complete-report scenario context、JSON beauty view、production incident agent、production incident registration comparison、provider retry/backoff、LangGraph optional framework agent、approval 默认拒绝、sandbox env 预过滤、JSONL audit 本地并发写 hash chain、显式 opt-in Docker sandbox backend preview、Docker backend CLI conformance、adapter payload fixtures、Docker stable candidate gate 和 E2E smoke 都已验证。覆盖范围包括 adapter、audit、policy、sandbox、platform、release manifest、Code/CI pilot、staging pilot、SQLite audit、tracing、11 个基于用户指南场景的 acceptance tests、复杂 production incident agent、未注册 direct execution 与 registered runtime execution 对比、complete runtime report、single-run screenshot、带业务上下文的完整运行过程 HTML、clean wheel install、Docker sandbox runtime/failure paths E2E、run view browser evidence，以及 provider/framework-agent tests。
 
 **结论**
 

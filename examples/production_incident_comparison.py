@@ -127,7 +127,7 @@ def _registered_runtime(output_path: Path) -> tuple[AgentRuntime, Path]:
 
     @runtime.tool(name="apply_hotfix", risk_level="critical")
     def apply_hotfix(service: str, patch_id: str) -> dict[str, str]:
-        return {"service": service, "patch_id": patch_id, "status": "applied"}
+        return {"service": service, "patch_id": patch_id, "status": "applied", "execution_path": "registered-runtime"}
 
     return runtime, audit_path
 
@@ -153,7 +153,7 @@ def _direct_tools() -> dict[str, Any]:
         return {"service": service, "target_version": target_version, "reason": reason, "ticket": "INC-2026-0621"}
 
     def apply_hotfix(service: str, patch_id: str) -> dict[str, str]:
-        return {"service": service, "patch_id": patch_id, "status": "applied"}
+        return {"service": service, "patch_id": patch_id, "status": "applied", "execution_path": "direct-only"}
 
     return {
         "read_deployment_status": read_deployment_status,
@@ -225,6 +225,7 @@ def _comparison_summary(
         "audit_available": bool(registered.audit_events) and not direct.audit_events,
         "direct_hotfix_applied": _hotfix_applied(direct),
         "registered_hotfix_blocked": _hotfix_blocked(registered),
+        "registered_deny_no_direct_fallback": _deny_without_direct_fallback(registered),
     }
 
 
@@ -235,6 +236,13 @@ def _hotfix_applied(transcript: ProductionIncidentTranscript) -> bool:
 
 def _hotfix_blocked(transcript: ProductionIncidentTranscript) -> bool:
     return bool(transcript.tool_results and transcript.tool_results[-1].status == "denied")
+
+
+def _deny_without_direct_fallback(transcript: ProductionIncidentTranscript) -> bool:
+    return _hotfix_blocked(transcript) and all(
+        not (isinstance(result.output, dict) and result.output.get("execution_path") == "direct-only")
+        for result in transcript.tool_results
+    )
 
 
 def _run_view_snapshot(transcript: ProductionIncidentTranscript) -> dict[str, Any]:

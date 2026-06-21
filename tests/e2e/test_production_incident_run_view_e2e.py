@@ -8,6 +8,7 @@ def test_production_incident_run_view_e2e(tmp_path):
 
     assert report["comparison"]["direct_hotfix_applied"] is True
     assert report["comparison"]["registered_hotfix_blocked"] is True
+    assert report["comparison"]["registered_deny_no_direct_fallback"] is True
     assert report["comparison"]["policy_enforced"] is True
     assert report["comparison"]["sandbox_enforced"] is True
     assert report["comparison"]["audit_available"] is True
@@ -22,6 +23,9 @@ def test_production_incident_run_view_e2e(tmp_path):
 
     persisted = json.loads(comparison_json.read_text(encoding="utf-8"))
     assert persisted["registered"]["status"] == "completed_with_denial"
+    assert persisted["direct"]["tool_outputs"][-1]["execution_path"] == "direct-only"
+    assert persisted["registered"]["tool_outputs"][-1] == {"status": "denied", "error": "matched_rule"}
+    assert "direct-only" not in json.dumps(persisted["registered"], ensure_ascii=False)
     assert "SandboxEnforced" in persisted["registered"]["audit_events"]
 
     html = run_view.read_text(encoding="utf-8")
