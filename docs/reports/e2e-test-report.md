@@ -11,8 +11,8 @@
 
 核心证据：
 
-- E2E 自动化集合：`10 passed in 9.78s`
-- 全量回归集合：`224 passed in 38.97s`
+- E2E 自动化集合：`11 passed in 10.27s`
+- 全量回归集合：`226 passed in 35.60s`
 - CI 门禁：提交后由 GitHub Actions 运行 compile、lint、type check、full tests、E2E smoke、certification、adapter replay 和 sandbox conformance
 
 本报告覆盖七类端到端路径：
@@ -71,13 +71,13 @@ PYTHONPATH=src python -m pytest tests/e2e tests/test_e2e_readiness.py -q
 **输出结果**
 
 ```text
-........                                                                 [100%]
-10 passed in 9.78s
+...........                                                              [100%]
+11 passed in 10.27s
 ```
 
 **输出解释**
 
-自动化 E2E 集合通过表示自动化 E2E path 和 readiness 检查全部通过。它证明当前仓库可以完成 clean wheel install、复杂 agent run view、Docker sandbox runtime、complete report fake provider、Docker sandbox failure paths、run view browser evidence、runtime governance matrix，以及 E2E 计划和测试文件的基本一致性检查。
+自动化 E2E 集合通过表示自动化 E2E path 和 readiness 检查全部通过。它证明当前仓库可以完成 clean wheel install、复杂 agent run view、Docker sandbox runtime、complete report fake provider、Docker sandbox failure paths、run view browser evidence、runtime governance matrix、registered agent 并发 context isolation，以及 E2E 计划和测试文件的基本一致性检查。
 
 **结论**
 
@@ -380,12 +380,12 @@ PYTHONPATH=src python -m pytest -q
 **输出结果**
 
 ```text
-224 passed in 38.97s
+226 passed in 35.60s
 ```
 
 **输出解释**
 
-全量回归包含 unit、integration、contract、scenario、real-agent、provider optional、tracing、complete report、run viewer、sandbox、adapter、platform、pilot 和 E2E smoke。它还覆盖 policy precedence、registered agent capability/profile enforcement、HTML escaping、Docker env 防泄漏和 SQLite audit 并发 hash chain。它用于确认新增 E2E 覆盖没有破坏既有 runtime 行为。
+全量回归包含 unit、integration、contract、scenario、real-agent、provider optional、tracing、complete report、run viewer、sandbox、adapter、platform、pilot 和 E2E smoke。它还覆盖 policy precedence、registered agent capability/profile enforcement、registered agent 并发 context 隔离、HTML escaping、subprocess / Docker env 防泄漏和 SQLite audit 并发 hash chain。它用于确认新增 E2E 覆盖没有破坏既有 runtime 行为。
 
 **结论**
 
