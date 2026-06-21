@@ -94,7 +94,7 @@ python -m pytest -q
 **输出结果**
 
 ```text
-207 passed in 40.22s
+207 passed in 42.12s
 ```
 
 **输出解释**

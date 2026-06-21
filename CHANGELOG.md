@@ -22,6 +22,7 @@
 - 更新 README、CONTRIBUTING、SECURITY、docs/user-guide、docs/reports/test-report 和 docs/runbooks/design-partner-runbook，修复 fresh setup、测试证据和安全边界说明漂移。
 - 整理公开文档信息架构：根目录仅保留开源入口文档，报告、runbook、reference、release checklist 和 E2E plan 归入 `docs/`，并新增 `docs/README.md` 索引。
 - 新增 `MANIFEST.in`，发布 sdist 时排除 `tests/`、`.github/`、`docs/` 和 `roles/`，避免源码包混入内部验证材料。
+- 拆分 open-source 维护性边界：`RegisteredAgent` session 逻辑移入 `agent_runtime.core.agent_session`，complete report 实现移入 `agent_runtime.reporting.complete_report`，`examples/complete_runtime_report.py` 保持薄入口。
 
 ## Technical Preview
 

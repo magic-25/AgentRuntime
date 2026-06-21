@@ -11,8 +11,8 @@
 
 核心证据：
 
-- E2E 自动化集合：`8 passed in 8.75s`
-- 全量回归集合：`207 passed in 40.22s`
+- E2E 自动化集合：`8 passed in 13.31s`
+- 全量回归集合：`207 passed in 42.12s`
 - CI 门禁：提交后由 GitHub Actions 运行 compile、lint、type check、full tests、E2E smoke、certification、adapter replay 和 sandbox conformance
 
 本报告覆盖七类端到端路径：
@@ -69,7 +69,7 @@ PYTHONPATH=src python -m pytest tests/e2e tests/test_e2e_readiness.py -q
 
 ```text
 ........                                                                 [100%]
-8 passed in 8.75s
+8 passed in 13.31s
 ```
 
 **输出解释**
@@ -377,7 +377,7 @@ PYTHONPATH=src python -m pytest -q
 **输出结果**
 
 ```text
-207 passed in 40.22s
+207 passed in 42.12s
 ```
 
 **输出解释**
