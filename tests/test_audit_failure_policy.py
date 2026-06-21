@@ -1,4 +1,13 @@
 from agent_runtime.core.runtime import AgentRuntime
+from agent_runtime.execution.sandbox import SandboxExecutor, SandboxViolationError
+
+
+class RejectingSandboxExecutor(SandboxExecutor):
+    backend_name = "rejecting"
+    available = True
+
+    def execute(self, spec):
+        raise SandboxViolationError("sandbox.network_denied")
 
 
 class FailingAuditSink:
@@ -28,6 +37,16 @@ class FailingOnExecutionFinishedAuditSink:
         self.events.append(event)
         if event.event_type == "ToolExecutionFinished":
             raise OSError("disk full after execution")
+
+
+class FailingOnRuntimeErrorAuditSink:
+    def __init__(self) -> None:
+        self.events = []
+
+    def write(self, event):
+        self.events.append(event)
+        if event.event_type == "RuntimeError":
+            raise OSError("disk full on runtime error")
 
 
 def test_audit_failure_warn_allows_dev_tool_call():
@@ -124,3 +143,22 @@ def test_audit_failure_after_prod_execution_is_reported_as_error():
     assert called is True
     assert result.status == "error"
     assert result.error == "audit.write_failed_after_execution"
+
+
+def test_audit_failure_fail_closed_blocks_runtime_error_path():
+    runtime = AgentRuntime.from_dict(
+        {
+            "version": 1,
+            "default_decision": "deny",
+            "audit": {"on_write_failure": {"prod": "fail_closed"}},
+            "rules": [{"id": "allow-cmd", "environment": "prod", "tool": "cmd", "effect": "allow"}],
+        },
+        sandbox_executor=RejectingSandboxExecutor(),
+    )
+    runtime.audit_sink = FailingOnRuntimeErrorAuditSink()
+    runtime.sandboxed_command_tool("cmd", ["python", "-V"], cwd=".")
+
+    result = runtime.call_tool("cmd", {}, actor={}, environment="prod")
+
+    assert result.status == "denied"
+    assert result.error == "audit.write_failed"

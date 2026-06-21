@@ -74,7 +74,7 @@ policy evaluation 使用保守 precedence：tool-specific deny 会覆盖 broad c
 
 高风险 prod command tool 必须使用 `sandboxed_command_tool` 和宿主注入的强隔离 sandbox backend；backend 不可用时 runtime 返回 `sandbox.unavailable`，不会退回普通 subprocess。
 
-sandboxed command 的环境变量会在进入 sandbox backend 前按 `env_allowlist` 裁剪，backend 不应接触未授权 secret。secret-like key 即使被误放进 allowlist，也会被拒绝。Docker backend 传递 env 时不会把 `KEY=value` 放入命令行 argv，避免通过进程列表泄漏值。
+sandboxed command 的环境变量会在进入 sandbox backend 前按 `env_allowlist` 裁剪，backend 不应接触未授权 secret。secret-like key 即使被误放进 allowlist，也会在 runtime / sandbox plan 层被拒绝，backend 不会收到该 env。Docker backend 传递 env 时不会把 `KEY=value` 放入命令行 argv，避免通过进程列表泄漏值。
 
 complete report 和 single-run screenshot HTML 会转义 prompt、provider output、tool result、policy/audit/trace 等动态值。公开 artifact 仍不应包含密钥、客户数据、原始 provider secret payload 或生产敏感信息。
 
@@ -83,6 +83,8 @@ JSONL / SQLite audit sink 的 hash chain 用于检测本地审计链篡改。JSO
 当前 contrib `ContainerSandboxBackend` 是 container execution plan simulation，用于 contract 和 abuse check，不执行真实 Docker container。
 
 `DockerSandboxBackend` 是显式 opt-in 的真实 Docker execution preview。它默认使用 no-network、read-only root filesystem、cap-drop ALL、no-new-privileges、pids/cpu/memory 限制、只挂载 runtime 允许的路径，并在进入 Docker 前裁剪 env allowlist。它仍依赖宿主 Docker daemon、镜像可信链、宿主内核/容器配置和外部审计归档，不声明绝对 sandbox escape prevention。
+
+`SidecarSandboxBackend` 是 preview contract。它会先构建 sandbox execution plan，再把裁剪后的 plan 传给 sidecar client；sidecar service 自身仍必须实现对应的隔离、调度、清理和宿主安全基线。
 
 真实 Docker smoke evidence 由 `agent-runtime sandbox evidence --backend container --run-smoke` 单独采集，不能替代生产隔离评估。
 

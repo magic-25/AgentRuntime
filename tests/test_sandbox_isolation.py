@@ -98,3 +98,26 @@ def test_sandboxed_command_uses_configured_provider_and_audits_enforcement(tmp_p
     assert sandbox_events
     assert sandbox_events[0]["payload"]["isolation_level"] == "strong"
     assert sandbox_events[0]["payload"]["backend"] == "recording-strong-sandbox"
+
+
+def test_runtime_rejects_secret_like_sandbox_env_before_backend(tmp_path):
+    sandbox = RecordingSandboxExecutor()
+    runtime = AgentRuntime.from_dict(_prod_config(tmp_path), sandbox_executor=sandbox)
+    runtime.sandboxed_command_tool(
+        name="sandboxed_secret",
+        argv=[sys.executable, "-c", "print('should-not-run')"],
+        cwd=str(tmp_path),
+        env={"API_KEY": "secret"},
+        env_allowlist=["API_KEY"],
+        risk_level="high",
+        capabilities_required=["tool.invoke:sandboxed_secret", "command.execute:python"],
+        network_access=False,
+        read_paths=[str(tmp_path)],
+        write_paths=[],
+    )
+
+    result = runtime.call_tool("sandboxed_secret", {}, actor={}, environment="prod")
+
+    assert result.status == "denied"
+    assert result.error == "env.secret_denied"
+    assert sandbox.calls == []

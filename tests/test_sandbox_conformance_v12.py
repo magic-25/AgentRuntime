@@ -25,6 +25,9 @@ def test_sandbox_conformance_runner_reports_sidecar_and_remote_support_levels():
 
     assert sidecar_report.support_level == "preview"
     assert sidecar_report.passed is True
+    assert "abuse.network_attempt" in sidecar_report.checks
+    assert "abuse.credential_path" in sidecar_report.checks
+    assert "abuse.secret_env" in sidecar_report.checks
     assert remote_report.support_level == "contract_beta"
     assert remote_report.passed is False
     assert "remote.contract_beta_only" in remote_report.failure_reasons

@@ -11,8 +11,8 @@
 
 核心证据：
 
-- E2E 自动化集合：`8 passed in 13.31s`
-- 全量回归集合：`219 passed in 44.72s`
+- E2E 自动化集合：`10 passed in 9.78s`
+- 全量回归集合：`224 passed in 38.97s`
 - CI 门禁：提交后由 GitHub Actions 运行 compile、lint、type check、full tests、E2E smoke、certification、adapter replay 和 sandbox conformance
 
 本报告覆盖七类端到端路径：
@@ -25,6 +25,7 @@
 | E2E-004 | complete report fake provider | 通过 | 无 |
 | E2E-005 | Docker sandbox failure paths | 通过 | 本地 Docker daemon |
 | E2E-006 | run view browser evidence | 通过 | 无 |
+| E2E-007 | runtime governance matrix | 通过 | 无 |
 | E2E-MANUAL-001 | complete report real provider key | 手工门禁 | `GLM_API_KEY` 或 `ZAI_API_KEY` |
 
 ## 测试环境
@@ -54,6 +55,8 @@
 | REQ-E2E-X-005 | registered agent 在 policy deny 时不得 fallback 到 direct execution | direct-only marker 只允许出现在 unregistered path | registered runtime deny 后不执行 direct tool | `examples/production_incident_comparison.py` | E2E-002 | `registered_deny_no_direct_fallback` | verified |
 | REQ-E2E-X-006 | Docker sandbox 必须覆盖关键失败路径 | Docker backend preview 不只验证 happy path | no-network、read-only、env allowlist、timeout 都通过 runtime/sandbox evidence 验证 | `DockerSandboxBackend` | E2E-005 | Docker failure output and audit | verified |
 | REQ-E2E-X-007 | run view / complete report 必须能作为浏览器可审查证据 | P0 不做像素级 CI，但验证 HTML 关键区域和 screenshot artifact | report HTML 必须包含 governance、timeline、trace、raw evidence、JSON beauty view | `src/agent_runtime/run_view.py` | E2E-006 | HTML evidence and PNG artifact | verified |
+| REQ-E2E-X-010 | approval provider approve/reject/timeout E2E | P1 自动化覆盖 governance matrix | approval provider 三类结果必须进入 runtime / observer evidence | approval provider / runtime tool execution | E2E-007 | approval matrix output | verified |
+| REQ-E2E-X-011 | concurrent audit/trace/observer E2E | P1 自动化覆盖并发 audit chain | 并发 runtime calls 写 SQLite audit 后 hash chain 必须 valid | SQLite audit / runtime call_tool | E2E-007 | concurrent audit verify | verified |
 | REQ-E2E-X-009 | 主流 adapter/framework runtime E2E | P1 planned | optional dependencies 不进 core runtime | adapter packs | P1 planned | plan only | planned |
 | REQ-E2E-X-012 | sidecar、remote、staging、long-running recovery | P2 deferred/manual | 需要真实或本地服务门禁 | sandbox backend / runbook | P2 deferred | plan only | deferred |
 
@@ -69,12 +72,12 @@ PYTHONPATH=src python -m pytest tests/e2e tests/test_e2e_readiness.py -q
 
 ```text
 ........                                                                 [100%]
-8 passed in 13.31s
+10 passed in 9.78s
 ```
 
 **输出解释**
 
-`8 passed` 表示六条自动化 E2E path 和两个 readiness 检查全部通过。它证明当前仓库可以完成 clean wheel install、复杂 agent run view、Docker sandbox runtime、complete report fake provider、Docker sandbox failure paths、run view browser evidence，以及 E2E 计划和测试文件的基本一致性检查。
+自动化 E2E 集合通过表示自动化 E2E path 和 readiness 检查全部通过。它证明当前仓库可以完成 clean wheel install、复杂 agent run view、Docker sandbox runtime、complete report fake provider、Docker sandbox failure paths、run view browser evidence、runtime governance matrix，以及 E2E 计划和测试文件的基本一致性检查。
 
 **结论**
 
@@ -377,7 +380,7 @@ PYTHONPATH=src python -m pytest -q
 **输出结果**
 
 ```text
-219 passed in 44.72s
+224 passed in 38.97s
 ```
 
 **输出解释**
@@ -395,9 +398,9 @@ PYTHONPATH=src python -m pytest -q
 - HTML run view 当前以 artifact 存在性和关键内容检查为主，没有浏览器像素级视觉断言。
 - clean wheel install 验证本地 wheel artifact，不验证 PyPI 上传和跨平台安装矩阵。
 - 外部 design partner staging 场景仍需要按 [docs/runbooks/design-partner-runbook.md](/docs/runbooks/design-partner-runbook.md) 复跑。
-- P1 adapter/framework、approval provider、并发 audit/trace 仍是 planned。
+- P1 adapter/framework 仍是 planned。
 - P2 sidecar、remote executor、staging 和长任务恢复仍是 deferred/manual。
 
 ## 总结
 
-当前 E2E 覆盖已经能证明 Agent Runtime 的主要开源体验链路可跑：从安装、CLI、复杂 agent runtime 治理、registered deny no fallback、真实 Docker sandbox happy/failure paths、完整运行报告、run view browser evidence，到 E2E 文档 readiness。下一步最有价值的补充是进入 P1：adapter/framework runtime E2E、approval provider matrix、并发 audit/trace，以及把真实 provider 手工门禁固化为 design partner 可复跑证据。
+当前 E2E 覆盖已经能证明 Agent Runtime 的主要开源体验链路可跑：从安装、CLI、复杂 agent runtime 治理、registered deny no fallback、真实 Docker sandbox happy/failure paths、完整运行报告、run view browser evidence、approval provider matrix、并发 audit chain，到 E2E 文档 readiness。下一步最有价值的补充是继续推进 P1 adapter/framework runtime E2E，以及把真实 provider 手工门禁固化为 design partner 可复跑证据。
