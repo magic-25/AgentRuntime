@@ -72,6 +72,11 @@ class FailingAgent:
         raise RuntimeError(f"cannot handle {prompt}")
 
 
+class FailingAuditSink:
+    def write(self, event):
+        raise OSError("audit sink unavailable")
+
+
 def test_agent_run_session_wraps_arbitrary_python_output(tmp_path):
     runtime = _runtime(tmp_path)
     registered = runtime.register_agent(
@@ -181,3 +186,22 @@ def test_runtime_run_agent_registers_and_returns_session_result(tmp_path):
     assert isinstance(result, AgentRunResult)
     assert result.status == "completed"
     assert result.output["answer"] == "handled: from runtime"
+
+
+def test_agent_run_session_fails_closed_when_lifecycle_audit_write_fails(tmp_path):
+    runtime = _runtime(tmp_path)
+    runtime.config["audit"]["on_write_failure"] = {"dev": "fail_closed"}
+    runtime.audit_sink = FailingAuditSink()
+
+    result = runtime.run_agent(
+        "dict-agent",
+        DictAgent(),
+        prompt="from runtime",
+        actor={"id": "alice"},
+        environment="dev",
+        metadata=_metadata(),
+    )
+
+    assert result.status == "failed"
+    assert result.error == "audit.write_failed"
+    assert result.audit_events == []

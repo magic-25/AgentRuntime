@@ -1,6 +1,6 @@
 import pytest
 
-from agent_runtime.execution.sandbox import SandboxCommandSpec, SandboxUnavailableError
+from agent_runtime.execution.sandbox import SandboxCommandSpec, SandboxUnavailableError, SandboxViolationError
 from agent_runtime_contrib.packs.sandbox.container import ContainerSandboxBackend
 from agent_runtime_contrib.packs.sandbox.remote import RemoteSandboxBackend
 from agent_runtime_contrib.packs.sandbox.sidecar import SidecarSandboxBackend
@@ -22,10 +22,8 @@ def test_container_backend_denies_network_access(tmp_path):
     backend = ContainerSandboxBackend()
     spec = SandboxCommandSpec(argv=["curl", "https://example.com"], cwd=str(tmp_path), network_access=True)
 
-    result = backend.execute(spec)
-
-    assert result.exit_code == 126
-    assert "network.denied" in result.stderr
+    with pytest.raises(SandboxViolationError, match="network.denied"):
+        backend.execute(spec)
 
 
 def test_sidecar_and_remote_backends_are_unavailable_stubs(tmp_path):

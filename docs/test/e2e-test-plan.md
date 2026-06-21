@@ -85,7 +85,7 @@
 
 验证点：
 
-- `network_access=True` 在进入 Docker 前被 runtime/sandbox plan 拒绝。
+- `network_access=True` 在进入 Docker 前被 runtime/sandbox plan 拒绝，并以 runtime-level denied result 暴露。
 - 只读 workspace 下写 `/workspace/blocked.txt` 失败，且不会在宿主目录留下文件。
 - `env_allowlist` 只允许指定变量进入容器，secret env 不进入 stdout 或 audit。
 - timeout command 返回 `exit_code=124` 和 `docker.timeout`。

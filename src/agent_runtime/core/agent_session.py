@@ -21,6 +21,7 @@ class RegisteredAgent:
         environment: str,
         metadata: AgentMetadata,
         direct_tools: dict[str, Any] | None = None,
+        registration_audit_ok: bool = True,
     ) -> None:
         self.runtime = runtime
         self.agent_id = agent_id
@@ -29,18 +30,23 @@ class RegisteredAgent:
         self.environment = environment
         self.metadata = metadata
         self.direct_tools = direct_tools or {}
+        self.registration_audit_ok = registration_audit_ok
 
     def run(self, prompt: str) -> Any:
+        if not self.registration_audit_ok:
+            raise RuntimeError("audit.write_failed")
         trace_id = f"trace_{uuid4().hex}"
         span_id = f"span_{uuid4().hex}"
-        self.runtime._audit_agent_event(
+        if not self.runtime._audit_agent_event(
             "AgentRunStarted",
             self.agent_id,
             {"actor": self.actor, "environment": self.environment, "metadata": self.metadata.to_dict()},
-        )
+            environment=self.environment,
+        ):
+            raise RuntimeError("audit.write_failed")
         span_started_at = perf_counter()
         if self.runtime._tracing_enabled():
-            self.runtime._audit_agent_trace_span(
+            if not self.runtime._audit_agent_trace_span(
                 "TraceSpanStarted",
                 self.agent_id,
                 trace_id,
@@ -51,7 +57,9 @@ class RegisteredAgent:
                     "status": "started",
                     "metadata": self.metadata.to_dict(),
                 },
-            )
+                environment=self.environment,
+            ):
+                raise RuntimeError("audit.write_failed")
         previous_agent_context = self.runtime._agent_trace_context
         self.runtime._agent_trace_context = {
             "agent_id": self.agent_id,
@@ -69,6 +77,7 @@ class RegisteredAgent:
                 "AgentRunFinished",
                 self.agent_id,
                 {"status": "failed", "error": error_type, "tool_count": 0},
+                environment=self.environment,
             )
             if self.runtime._tracing_enabled():
                 self.runtime._audit_agent_trace_span(
@@ -84,6 +93,7 @@ class RegisteredAgent:
                         "error": error_type,
                         "metadata": self.metadata.to_dict(),
                     },
+                    environment=self.environment,
                 )
             raise
         finally:
@@ -93,13 +103,15 @@ class RegisteredAgent:
         object.__setattr__(transcript, "agent_metadata", self.metadata.to_dict())
         object.__setattr__(transcript, "trace_id", trace_id)
         object.__setattr__(transcript, "agent_span_id", span_id)
-        self.runtime._audit_agent_event(
+        if not self.runtime._audit_agent_event(
             "AgentRunFinished",
             self.agent_id,
             {"status": transcript.status, "tool_count": len(transcript.tool_results)},
-        )
+            environment=self.environment,
+        ):
+            raise RuntimeError("audit.write_failed_after_execution")
         if self.runtime._tracing_enabled():
-            self.runtime._audit_agent_trace_span(
+            if not self.runtime._audit_agent_trace_span(
                 "TraceSpanFinished",
                 self.agent_id,
                 trace_id,
@@ -111,7 +123,9 @@ class RegisteredAgent:
                     "status": transcript.status,
                     "metadata": self.metadata.to_dict(),
                 },
-            )
+                environment=self.environment,
+            ):
+                raise RuntimeError("audit.write_failed_after_execution")
         object.__setattr__(transcript, "audit_events", self.runtime._audit_event_types_since_last_read())
         return transcript
 
@@ -120,7 +134,9 @@ class RegisteredAgent:
         audit_cursor = self.runtime._audit_event_cursor
         trace_id = f"trace_{uuid4().hex}"
         span_id = f"span_{uuid4().hex}"
-        self.runtime._audit_agent_event(
+        if not self.registration_audit_ok:
+            return self._audit_write_failed_result(request, trace_id, span_id, audit_cursor)
+        if not self.runtime._audit_agent_event(
             "AgentRunStarted",
             self.agent_id,
             {
@@ -129,10 +145,12 @@ class RegisteredAgent:
                 "metadata": self.metadata.to_dict(),
                 "context": request.context,
             },
-        )
+            environment=self.environment,
+        ):
+            return self._audit_write_failed_result(request, trace_id, span_id, audit_cursor)
         span_started_at = perf_counter()
         if self.runtime._tracing_enabled():
-            self.runtime._audit_agent_trace_span(
+            if not self.runtime._audit_agent_trace_span(
                 "TraceSpanStarted",
                 self.agent_id,
                 trace_id,
@@ -144,7 +162,9 @@ class RegisteredAgent:
                     "metadata": self.metadata.to_dict(),
                     "context": request.context,
                 },
-            )
+                environment=self.environment,
+            ):
+                return self._audit_write_failed_result(request, trace_id, span_id, audit_cursor)
         previous_agent_context = self.runtime._agent_trace_context
         self.runtime._agent_trace_context = {
             "agent_id": self.agent_id,
@@ -162,6 +182,7 @@ class RegisteredAgent:
                 "AgentRunFinished",
                 self.agent_id,
                 {"status": "failed", "error": error_type, "tool_count": 0},
+                environment=self.environment,
             )
             if self.runtime._tracing_enabled():
                 self.runtime._audit_agent_trace_span(
@@ -177,6 +198,7 @@ class RegisteredAgent:
                         "error": error_type,
                         "metadata": self.metadata.to_dict(),
                     },
+                    environment=self.environment,
                 )
             self.runtime._agent_trace_context = previous_agent_context
             result = AgentRunResult(
@@ -197,13 +219,25 @@ class RegisteredAgent:
 
         status = str(getattr(output, "status", "completed"))
         tool_results = list(getattr(output, "tool_results", []))
-        self.runtime._audit_agent_event(
+        if not self.runtime._audit_agent_event(
             "AgentRunFinished",
             self.agent_id,
             {"status": status, "tool_count": len(tool_results)},
-        )
+            environment=self.environment,
+        ):
+            self.runtime._agent_trace_context = previous_agent_context
+            return self._audit_write_failed_result(
+                request,
+                trace_id,
+                span_id,
+                audit_cursor,
+                status="error",
+                error="audit.write_failed_after_execution",
+                output=self.runtime._redact(_agent_output_to_public_value(output)),
+                tool_results=tool_results,
+            )
         if self.runtime._tracing_enabled():
-            self.runtime._audit_agent_trace_span(
+            if not self.runtime._audit_agent_trace_span(
                 "TraceSpanFinished",
                 self.agent_id,
                 trace_id,
@@ -215,7 +249,19 @@ class RegisteredAgent:
                     "status": status,
                     "metadata": self.metadata.to_dict(),
                 },
-            )
+                environment=self.environment,
+            ):
+                self.runtime._agent_trace_context = previous_agent_context
+                return self._audit_write_failed_result(
+                    request,
+                    trace_id,
+                    span_id,
+                    audit_cursor,
+                    status="error",
+                    error="audit.write_failed_after_execution",
+                    output=self.runtime._redact(_agent_output_to_public_value(output)),
+                    tool_results=tool_results,
+                )
         result = AgentRunResult(
             agent_id=self.agent_id,
             status=status,
@@ -226,6 +272,32 @@ class RegisteredAgent:
             agent_metadata=self.metadata.to_dict(),
             tool_results=tool_results,
             audit_events=self.runtime._audit_event_types_since(audit_cursor),
+        )
+        self.runtime._audit_event_cursor = len(self.runtime._audit_event_types)
+        return result
+
+    def _audit_write_failed_result(
+        self,
+        request: AgentRunRequest,
+        trace_id: str,
+        span_id: str,
+        audit_cursor: int,
+        status: str = "failed",
+        error: str = "audit.write_failed",
+        output: Any = None,
+        tool_results: list[Any] | None = None,
+    ) -> AgentRunResult:
+        result = AgentRunResult(
+            agent_id=self.agent_id,
+            status=status,
+            request=request,
+            output=output,
+            trace_id=trace_id,
+            agent_span_id=span_id,
+            agent_metadata=self.metadata.to_dict(),
+            tool_results=tool_results or [],
+            audit_events=self.runtime._audit_event_types_since(audit_cursor),
+            error=error,
         )
         self.runtime._audit_event_cursor = len(self.runtime._audit_event_types)
         return result

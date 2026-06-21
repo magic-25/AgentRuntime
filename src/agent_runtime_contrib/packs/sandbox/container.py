@@ -5,7 +5,6 @@ from agent_runtime.execution.sandbox import (
     SandboxCommandSpec,
     SandboxExecutionPlan,
     SandboxExecutor,
-    SandboxViolationError,
     build_sandbox_execution_plan,
 )
 from agent_runtime_contrib.packs.base import PackMetadata
@@ -35,10 +34,7 @@ class ContainerSandboxBackend(SandboxExecutor):
         return build_sandbox_execution_plan(spec)
 
     def execute(self, spec: SandboxCommandSpec) -> ProcessResult:
-        try:
-            plan = self.build_plan(spec)
-        except SandboxViolationError as error:
-            return ProcessResult(exit_code=126, stdout="", stderr=str(error))
+        plan = self.build_plan(spec)
         stdout = (
             f"container plan simulation: argv={plan.argv!r} "
             f"cwd={str(plan.cwd)!r} network_access={str(plan.network_access).lower()}"

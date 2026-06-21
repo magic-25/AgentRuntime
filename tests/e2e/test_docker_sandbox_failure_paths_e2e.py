@@ -86,9 +86,9 @@ def test_docker_sandbox_failure_paths_e2e(tmp_path):
     assert "SECRET=" in env_result.output["stdout"]
 
     network_result = _call(runtime, "network_denied")
-    assert network_result.status == "success"
-    assert network_result.output["exit_code"] == 126
-    assert "sandbox.network_denied" in network_result.output["stderr"]
+    assert network_result.status == "denied"
+    assert network_result.error == "sandbox.network_denied"
+    assert network_result.output is None
 
     read_only_result = _call(runtime, "read_only_workspace")
     assert read_only_result.status == "success"
